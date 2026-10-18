@@ -14,7 +14,8 @@ import {
     Users,
     Sparkles,
     ArrowUpRight,
-    ExternalLink
+    ExternalLink,
+    Trash2
 } from 'lucide-react';
 
 export default function AutomationsIndex({ automations, socialAccounts }) {
@@ -34,6 +35,14 @@ export default function AutomationsIndex({ automations, socialAccounts }) {
         router.post(`/automations/${id}/toggle`, {}, {
             preserveScroll: true,
         });
+    };
+
+    const handleDelete = (id, name) => {
+        if (window.confirm(`Apakah Anda yakin ingin menghapus otomasi "${name}"?`)) {
+            router.delete(`/automations/${id}`, {
+                preserveScroll: true,
+            });
+        }
     };
 
     return (
@@ -193,6 +202,14 @@ export default function AutomationsIndex({ automations, socialAccounts }) {
                                             <Sparkles className="w-3.5 h-3.5 text-[#18181b]" />
                                             <span>Buka Alur & Live Test</span>
                                         </Link>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleDelete(auto.id, auto.name)}
+                                            className="p-2 rounded-xl bg-white hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-[#e4e4e7] hover:border-rose-200 transition-all shadow-xs cursor-pointer"
+                                            title="Hapus Otomasi Ini"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
                                     </div>
                                 </div>
                             </div>

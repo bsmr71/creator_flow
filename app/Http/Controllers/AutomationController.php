@@ -161,6 +161,20 @@ class AutomationController extends Controller
         return back()->with('success', 'Status otomasi berhasil diperbarui.');
     }
 
+    public function destroy(Request $request, Automation $automation)
+    {
+        $workspace = $request->user()->currentWorkspace();
+        abort_if($automation->workspace_id !== $workspace->id, 403);
+
+        $name = $automation->name;
+        $automation->triggers()->delete();
+        $automation->actions()->delete();
+        $automation->logs()->delete();
+        $automation->delete();
+
+        return redirect()->route('automations.index')->with('success', "Otomasi \"{$name}\" berhasil dihapus.");
+    }
+
     public function simulate(Request $request)
     {
         $workspace = $request->user()->currentWorkspace();

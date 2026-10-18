@@ -86,6 +86,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/', [AutomationController::class, 'store'])->name('store');
         Route::get('/{automation}', [AutomationController::class, 'show'])->name('show');
         Route::post('/{automation}/toggle', [AutomationController::class, 'toggleStatus'])->name('toggle');
+        Route::delete('/{automation}', [AutomationController::class, 'destroy'])->name('destroy');
         Route::post('/simulate', [AutomationController::class, 'simulate'])->name('simulate');
     });
 

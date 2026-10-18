@@ -15,7 +15,8 @@ import {
     Clock,
     CheckCircle2,
     AlertCircle,
-    Sparkles
+    Sparkles,
+    Trash2
 } from 'lucide-react';
 
 export default function AutomationShow({ automation, socialAccounts }) {
@@ -30,6 +31,12 @@ export default function AutomationShow({ automation, socialAccounts }) {
         router.post(`/automations/${automation.id}/toggle`, {}, {
             preserveScroll: true,
         });
+    };
+
+    const handleDelete = () => {
+        if (window.confirm(`Apakah Anda yakin ingin menghapus otomasi "${automation.name}"?`)) {
+            router.delete(`/automations/${automation.id}`);
+        }
     };
 
     const handleRunSimulation = async (e) => {
@@ -73,26 +80,38 @@ export default function AutomationShow({ automation, socialAccounts }) {
                         <span>Kembali ke Daftar Otomasi</span>
                     </Link>
 
-                    <button
-                        onClick={handleToggle}
-                        className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all self-start sm:self-auto shadow-xs cursor-pointer ${
-                            automation.status === 'active'
-                                ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                                : 'bg-amber-50 text-amber-800 border border-amber-200'
-                        }`}
-                    >
-                        {automation.status === 'active' ? (
-                            <>
-                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                                <span>Status: Aktif Berjalan</span>
-                            </>
-                        ) : (
-                            <>
-                                <Pause className="w-3.5 h-3.5" />
-                                <span>Status: Dijeda</span>
-                            </>
-                        )}
-                    </button>
+                    <div className="flex items-center gap-2 self-start sm:self-auto">
+                        <button
+                            onClick={handleToggle}
+                            className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all shadow-xs cursor-pointer ${
+                                automation.status === 'active'
+                                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                    : 'bg-amber-50 text-amber-800 border border-amber-200'
+                            }`}
+                        >
+                            {automation.status === 'active' ? (
+                                <>
+                                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                    <span>Status: Aktif Berjalan</span>
+                                </>
+                            ) : (
+                                <>
+                                    <Pause className="w-3.5 h-3.5" />
+                                    <span>Status: Dijeda</span>
+                                </>
+                            )}
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={handleDelete}
+                            className="px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 bg-white hover:bg-rose-50 text-rose-600 border border-slate-200 hover:border-rose-200 transition-all shadow-xs cursor-pointer"
+                            title="Hapus Otomasi Ini"
+                        >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Hapus</span>
+                        </button>
+                    </div>
                 </div>
 
                 {/* Automation Summary Card */}
