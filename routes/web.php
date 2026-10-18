@@ -24,8 +24,17 @@ Route::get('/', WelcomeController::class)->name('welcome');
 
 // Public Legal Pages (Meta Graph API & App Review Compliance)
 Route::get('/privacy', [LegalController::class, 'privacy'])->name('legal.privacy');
+Route::get('/privacy-policy', [LegalController::class, 'privacy']);
+Route::get('/kebijakan-privasi', [LegalController::class, 'privacy']);
+
 Route::get('/terms', [LegalController::class, 'terms'])->name('legal.terms');
+Route::get('/terms-and-condition', [LegalController::class, 'terms']);
+Route::get('/terms-and-conditions', [LegalController::class, 'terms']);
+Route::get('/terms-of-service', [LegalController::class, 'terms']);
+Route::get('/syarat-ketentuan', [LegalController::class, 'terms']);
+
 Route::get('/data-deletion', [LegalController::class, 'dataDeletion'])->name('legal.data-deletion');
+Route::get('/user-data-deletion', [LegalController::class, 'dataDeletion']);
 Route::post('/api/webhooks/meta/data-deletion', [LegalController::class, 'handleMetaDeletionCallback'])->name('legal.data-deletion.callback');
 
 // Public Meta (Instagram & WhatsApp) Webhooks
