@@ -84,48 +84,73 @@ class AutomationEngineService
         $matchedTrigger = null;
         $matchedKeyword = '';
 
-        foreach ($automations as $automation) {
-            foreach ($automation->triggers as $trigger) {
-                $conditions = $trigger->conditions ?? [];
-                $targetPostType = $conditions['target_post_type'] ?? 'any';
-                $targetPostId = $trigger->post_id ?? null;
+        // Check if contact is replying in DM to complete a Follow Gate
+        if ($triggerType === 'dm_keyword') {
+            $existingContact = Contact::where('workspace_id', $workspaceId)
+                ->where('platform', $platform)
+                ->where('external_id', $senderId)
+                ->first();
 
-                // 1. Post Target Filtering (Specific post, Next post, or Any post)
-                if ($targetPostType === 'specific' && $targetPostId && ! empty($eventData['media_id'])) {
-                    if ($eventData['media_id'] !== $targetPostId && $eventData['media_id'] !== 'post_1') {
-                        continue; // Not targeting this specific post
+            if ($existingContact && ! empty($existingContact->tags)) {
+                foreach ($existingContact->tags as $tag) {
+                    if (str_starts_with($tag, 'Awaiting-Follow:')) {
+                        $targetAutomationId = (int) str_replace('Awaiting-Follow:', '', $tag);
+                        $awaitingAuto = $automations->firstWhere('id', $targetAutomationId);
+                        if ($awaitingAuto) {
+                            $matchedAutomation = $awaitingAuto;
+                            $matchedTrigger = $awaitingAuto->triggers->first();
+                            $matchedKeyword = 'FOLLOW_CHECK';
+                            break;
+                        }
                     }
                 }
+            }
+        }
 
-                $matchType = $trigger->match_type ?? 'contains';
-                $keywords = $trigger->keywords ?? [];
+        if (! $matchedAutomation) {
+            foreach ($automations as $automation) {
+                foreach ($automation->triggers as $trigger) {
+                    $conditions = $trigger->conditions ?? [];
+                    $targetPostType = $conditions['target_post_type'] ?? 'any';
+                    $targetPostId = $trigger->post_id ?? null;
 
-                // 2. Any Word Match
-                if ($matchType === 'any_word' || empty($keywords)) {
-                    $matchedAutomation = $automation;
-                    $matchedTrigger = $trigger;
-                    $matchedKeyword = '*';
-                    break 2;
-                }
-
-                // 3. Keyword Match (Contains or Exact)
-                foreach ($keywords as $kw) {
-                    $kwClean = trim((string) $kw);
-                    if ($kwClean === '') {
-                        continue;
+                    // 1. Post Target Filtering (Specific post, Next post, or Any post)
+                    if ($targetPostType === 'specific' && $targetPostId && ! empty($eventData['media_id'])) {
+                        if ($eventData['media_id'] !== $targetPostId && $eventData['media_id'] !== 'post_1') {
+                            continue; // Not targeting this specific post
+                        }
                     }
 
-                    $isMatch = match ($matchType) {
-                        'exact' => (strcasecmp($inputText, $kwClean) === 0),
-                        'starts_with' => (stripos($inputText, $kwClean) === 0),
-                        default => (stripos($inputText, $kwClean) !== false),
-                    };
+                    $matchType = $trigger->match_type ?? 'contains';
+                    $keywords = $trigger->keywords ?? [];
 
-                    if ($isMatch) {
+                    // 2. Any Word Match
+                    if ($matchType === 'any_word' || empty($keywords)) {
                         $matchedAutomation = $automation;
                         $matchedTrigger = $trigger;
-                        $matchedKeyword = $kwClean;
+                        $matchedKeyword = '*';
                         break 2;
+                    }
+
+                    // 3. Keyword Match (Contains or Exact)
+                    foreach ($keywords as $kw) {
+                        $kwClean = trim((string) $kw);
+                        if ($kwClean === '') {
+                            continue;
+                        }
+
+                        $isMatch = match ($matchType) {
+                            'exact' => (strcasecmp($inputText, $kwClean) === 0),
+                            'starts_with' => (stripos($inputText, $kwClean) === 0),
+                            default => (stripos($inputText, $kwClean) !== false),
+                        };
+
+                        if ($isMatch) {
+                            $matchedAutomation = $automation;
+                            $matchedTrigger = $trigger;
+                            $matchedKeyword = $kwClean;
+                            break 2;
+                        }
                     }
                 }
             }
@@ -173,10 +198,20 @@ class AutomationEngineService
                 if (! empty($conditions['require_follow_enabled'])) {
                     $isFollowing = $this->metaGraphApi->checkUserFollows($senderId, $accessToken);
                     if (! $isFollowing) {
-                        $messageBody = "Hai kak! 👋 Follow akun kami @{$socialAccount->username} dulu yuk untuk membuka link eksklusif ini.";
+                        // Tag contact as awaiting follow so when they reply in DM, we verify and deliver the link
+                        $contact->tags = array_values(array_unique(array_merge($contact->tags ?? [], ["Awaiting-Follow:{$matchedAutomation->id}"])));
+                        $contact->save();
+
+                        $messageBody = "Hai kak! 👋 Follow akun kami @{$socialAccount->username} dulu yuk untuk membuka link eksklusif ini.\n\nSetelah follow, balas DM ini dengan kata 'SUDAH' ya agar link otomatis meluncur! 🙌";
                         $buttons = [
-                            ['title' => 'Saya Sudah Follow', 'url' => "https://instagram.com/{$socialAccount->username}"],
+                            ['title' => 'Follow Akun Kami', 'url' => "https://instagram.com/{$socialAccount->username}"],
                         ];
+                    } else {
+                        // Successfully verified as follower! Clear tag
+                        if (! empty($contact->tags)) {
+                            $contact->tags = array_values(array_filter($contact->tags, fn ($t) => ! str_starts_with($t, 'Awaiting-Follow:')));
+                            $contact->save();
+                        }
                     }
                 }
 

@@ -328,7 +328,7 @@ class MetaGraphApiService
         ?string $accessToken = null,
         ?string $commentId = null
     ): array {
-        $isDirectIg = ($accessToken && (str_starts_with($accessToken, 'IG') || ! str_starts_with($accessToken, 'EAAB')));
+        $isDirectIg = ($accessToken && (str_starts_with($accessToken, 'IG') || ! str_starts_with($accessToken, 'EAA')));
 
         $endpoints = [];
         if ($isDirectIg) {
@@ -368,13 +368,49 @@ class MetaGraphApiService
             ];
         }
 
-        // 2. Standard direct message with recipient user ID
+        // 2. Standard direct message payload baseline
         $standardPayload = [
             'recipient' => ['id' => $recipientId],
             'message' => ['text' => $bodyWithLinks],
         ];
 
-        // Append quick replies if buttons exist
+        // 3. Generic template with web_url buttons (renders as native button cards in Instagram DM)
+        if (! empty($buttons)) {
+            $templateButtons = [];
+            foreach (array_slice($buttons, 0, 3) as $btn) {
+                $btnUrl = $btn['url'] ?? '';
+                if (! empty($btnUrl) && filter_var($btnUrl, FILTER_VALIDATE_URL)) {
+                    $templateButtons[] = [
+                        'type' => 'web_url',
+                        'url' => $btnUrl,
+                        'title' => mb_substr($btn['title'] ?? 'Buka Link', 0, 20),
+                    ];
+                }
+            }
+
+            if (! empty($templateButtons)) {
+                $payloads[] = [
+                    'recipient' => ['id' => $recipientId],
+                    'message' => [
+                        'attachment' => [
+                            'type' => 'template',
+                            'payload' => [
+                                'template_type' => 'generic',
+                                'elements' => [
+                                    [
+                                        'title' => mb_substr($messageText, 0, 80),
+                                        'subtitle' => 'Ketuk tombol di bawah ini:',
+                                        'buttons' => $templateButtons,
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ];
+            }
+        }
+
+        // 3. Quick replies payload
         if (! empty($buttons)) {
             $quickReplies = [];
             foreach ($buttons as $btn) {
@@ -389,6 +425,7 @@ class MetaGraphApiService
             $payloads[] = $payloadWithButtons;
         }
 
+        // 4. Standard text payload fallback
         $payloads[] = $standardPayload;
 
         $lastError = null;
@@ -445,7 +482,7 @@ class MetaGraphApiService
      */
     public function replyToComment(string $commentId, string $replyText, ?string $accessToken = null): array
     {
-        $isDirectIg = ($accessToken && (str_starts_with($accessToken, 'IG') || ! str_starts_with($accessToken, 'EAAB')));
+        $isDirectIg = ($accessToken && (str_starts_with($accessToken, 'IG') || ! str_starts_with($accessToken, 'EAA')));
 
         $endpoints = [];
         if ($isDirectIg) {
@@ -615,25 +652,36 @@ class MetaGraphApiService
     public function checkUserFollows(string $instagramScopedId, ?string $accessToken = null): bool
     {
         if (empty($accessToken) || str_starts_with($accessToken, 'EAAB_test')) {
-            return true; // Default to true in test mode
+            return false;
         }
 
         try {
-            $base = (str_starts_with($accessToken, 'IG') || ! str_starts_with($accessToken, 'EAAB'))
-                ? 'https://graph.instagram.com/v21.0'
-                : $this->baseUrl;
+            $endpoints = [
+                "{$this->baseUrl}/{$instagramScopedId}",
+                "https://graph.instagram.com/v21.0/{$instagramScopedId}",
+            ];
 
-            $response = Http::withToken($accessToken)->get("{$base}/{$instagramScopedId}", [
-                'fields' => 'name,is_user_follow_business',
-            ]);
+            foreach ($endpoints as $url) {
+                $response = Http::withToken($accessToken)->get($url, [
+                    'fields' => 'name,username,is_user_follow_business',
+                ]);
 
-            if ($response->successful()) {
-                return (bool) ($response->json('is_user_follow_business') ?? true);
+                if ($response->successful()) {
+                    $isFollowing = $response->json('is_user_follow_business');
+                    if ($isFollowing !== null) {
+                        Log::info('Meta checkUserFollows result', [
+                            'igsid' => $instagramScopedId,
+                            'is_user_follow_business' => $isFollowing,
+                        ]);
+
+                        return (bool) $isFollowing;
+                    }
+                }
             }
         } catch (Exception $e) {
             Log::warning('Check user follows failed', ['error' => $e->getMessage()]);
         }
 
-        return true;
+        return false;
     }
 }
