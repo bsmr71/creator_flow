@@ -65,18 +65,18 @@ class MetaOAuthController extends Controller
         $flow = $request->session()->pull('meta_oauth_flow', 'connect_account');
         $receivedState = $request->query('state');
 
-        if (! $savedState || $savedState !== $receivedState) {
+        if ($savedState && $receivedState && $savedState !== $receivedState) {
             $fallbackRoute = $flow === 'sso_login' ? 'login' : 'integrations.index';
 
             return redirect()->route($fallbackRoute)->with(
                 'error',
-                'Otorisasi gagal: Sesi telah kedaluwarsa. Silakan coba kembali.'
+                'Otorisasi gagal: Sesi otentikasi tidak valid. Silakan coba kembali.'
             );
         }
 
         $code = $request->query('code');
         if (! $code) {
-            $errorDesc = $request->query('error_description', 'Akses ditolak oleh pengguna.');
+            $errorDesc = $request->query('error_description', 'Akses ditolak oleh pengguna atau izin belum diberikan.');
             $fallbackRoute = $flow === 'sso_login' ? 'login' : 'integrations.index';
 
             return redirect()->route($fallbackRoute)->with('error', $errorDesc);
@@ -103,7 +103,7 @@ class MetaOAuthController extends Controller
 
                 return redirect()->route($fallbackRoute)->with(
                     'error',
-                    'Tidak ditemukan Akun Instagram Bisnis/Kreator yang terhubung. Pastikan Instagram Anda bertipe Profesional dan sudah dihubungkan ke Halaman Facebook Anda.'
+                    'Tidak ditemukan Akun Instagram Bisnis/Kreator yang terhubung. Pastikan Instagram Anda bertipe Profesional dan sudah diizinkan saat popup persetujuan.'
                 );
             }
 
@@ -142,14 +142,14 @@ class MetaOAuthController extends Controller
                     'is_connected' => true,
                     'status' => 'active',
                     'metadata' => [
-                        'page_id' => $primaryAccount['page_id'],
-                        'page_name' => $primaryAccount['page_name'],
+                        'page_id' => $primaryAccount['page_id'] ?? null,
+                        'page_name' => $primaryAccount['page_name'] ?? null,
                     ],
                 ]
             );
 
             // 6. Automatically subscribe app to Page webhooks
-            if (! empty($primaryAccount['page_access_token'])) {
+            if (! empty($primaryAccount['page_id']) && ! empty($primaryAccount['page_access_token'])) {
                 $metaService->subscribeAppToPage($primaryAccount['page_id'], $primaryAccount['page_access_token']);
             }
 
@@ -160,9 +160,9 @@ class MetaOAuthController extends Controller
                 );
             }
 
-            return redirect()->route('dashboard')->with(
+            return redirect()->route('integrations.index')->with(
                 'success',
-                "Berhasil menghubungkan Instagram @{$socialAccount->username} ke workspace! Postingan Anda siap diotomasi."
+                "Berhasil menghubungkan Instagram @{$socialAccount->username} ke workspace! Akun kini aktif dan siap diotomasi."
             );
         } catch (Exception $e) {
             Log::error('Meta OAuth Callback Exception', ['exception' => $e->getMessage()]);

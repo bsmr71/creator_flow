@@ -18,7 +18,8 @@ import {
     ShieldCheck,
     Globe,
     LogOut,
-    CreditCard
+    CreditCard,
+    AlertCircle
 } from 'lucide-react';
 
 export default function AppLayout({ children, title }) {
@@ -242,6 +243,16 @@ export default function AppLayout({ children, title }) {
                     <div className="mx-6 mt-4 p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium flex items-center gap-2.5 shadow-xs">
                         <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
                         <span>{flash.success}</span>
+                    </div>
+                )}
+
+                {flash?.error && (
+                    <div className="mx-6 mt-4 p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium flex items-start gap-2.5 shadow-xs">
+                        <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 mt-0.5" />
+                        <div className="space-y-1">
+                            <span className="font-bold text-rose-900 block">Pemberitahuan:</span>
+                            <p className="text-rose-800 leading-relaxed">{flash.error}</p>
+                        </div>
                     </div>
                 )}
 

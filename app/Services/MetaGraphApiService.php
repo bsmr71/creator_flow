@@ -87,6 +87,8 @@ class MetaGraphApiService
      */
     public function exchangeCodeForToken(string $code): array
     {
+        $cleanCode = preg_replace('/#.*$/', '', trim($code));
+
         // First try Instagram direct OAuth token exchange
         $igAppId = (string) config('services.meta.instagram_app_id', $this->appId);
         $igSecret = (string) config('services.meta.instagram_app_secret', $this->appSecret);
@@ -96,7 +98,7 @@ class MetaGraphApiService
             'client_secret' => $igSecret,
             'grant_type' => 'authorization_code',
             'redirect_uri' => $this->redirectUri,
-            'code' => $code,
+            'code' => $cleanCode,
         ]);
 
         if ($igResponse->successful() && ! empty($igResponse->json('access_token'))) {
@@ -108,11 +110,14 @@ class MetaGraphApiService
             'client_id' => $this->appId,
             'client_secret' => $this->appSecret,
             'redirect_uri' => $this->redirectUri,
-            'code' => $code,
+            'code' => $cleanCode,
         ]);
 
         if ($response->failed()) {
-            Log::error('Meta OAuth Token Exchange Failed', ['response' => $response->json()]);
+            Log::error('Meta OAuth Token Exchange Failed', [
+                'ig_response' => $igResponse->json(),
+                'fb_response' => $response->json(),
+            ]);
             throw new Exception('Gagal menukarkan kode OAuth Meta: '.$response->body());
         }
 
@@ -124,26 +129,41 @@ class MetaGraphApiService
      */
     public function getInstagramProfile(string $accessToken): array
     {
-        $response = Http::get('https://graph.instagram.com/v21.0/me', [
-            'fields' => 'user_id,username,name,profile_picture_url',
+        // Try Instagram User Profile endpoint with valid fields
+        $response = Http::get('https://graph.instagram.com/me', [
+            'fields' => 'id,username',
             'access_token' => $accessToken,
         ]);
 
+        if (! $response->successful()) {
+            $response = Http::get("{$this->baseUrl}/me", [
+                'fields' => 'id,name',
+                'access_token' => $accessToken,
+            ]);
+        }
+
         if ($response->successful()) {
             $data = $response->json();
+            $igId = (string) ($data['id'] ?? $data['user_id'] ?? 'ig_'.time());
+            $username = (string) ($data['username'] ?? $data['name'] ?? 'instagram_user');
 
             return [
                 [
                     'page_id' => null,
                     'page_name' => 'Instagram Direct',
                     'page_access_token' => $accessToken,
-                    'instagram_id' => (string) ($data['user_id'] ?? $data['id'] ?? 'ig_'.time()),
-                    'instagram_username' => $data['username'] ?? '',
-                    'instagram_name' => $data['name'] ?? $data['username'] ?? '',
-                    'instagram_avatar' => $data['profile_picture_url'] ?? null,
+                    'instagram_id' => $igId,
+                    'instagram_username' => $username,
+                    'instagram_name' => '@'.$username,
+                    'instagram_avatar' => "https://api.dicebear.com/7.x/identicon/svg?seed={$username}",
                 ],
             ];
         }
+
+        Log::warning('Instagram Profile Fetch Failed', [
+            'status' => $response->status(),
+            'body' => $response->body(),
+        ]);
 
         return [];
     }
@@ -153,6 +173,22 @@ class MetaGraphApiService
      */
     public function getLongLivedUserToken(string $shortLivedToken): array
     {
+        $igSecret = (string) config('services.meta.instagram_app_secret', $this->appSecret);
+
+        // If it's an Instagram token, use the Instagram exchange endpoint
+        if (str_starts_with($shortLivedToken, 'IG') || ! str_starts_with($shortLivedToken, 'EAAB')) {
+            $igResponse = Http::get('https://graph.instagram.com/access_token', [
+                'grant_type' => 'ig_exchange_token',
+                'client_secret' => $igSecret,
+                'access_token' => $shortLivedToken,
+            ]);
+
+            if ($igResponse->successful() && ! empty($igResponse->json('access_token'))) {
+                return $igResponse->json();
+            }
+        }
+
+        // Facebook exchange token endpoint
         $response = Http::get("{$this->baseUrl}/oauth/access_token", [
             'grant_type' => 'fb_exchange_token',
             'client_id' => $this->appId,
@@ -161,7 +197,7 @@ class MetaGraphApiService
         ]);
 
         if ($response->failed()) {
-            Log::error('Meta Long Lived Token Exchange Failed', ['response' => $response->json()]);
+            Log::warning('Meta Long Lived Token Exchange Failed, using short-lived token', ['response' => $response->json()]);
 
             return ['access_token' => $shortLivedToken, 'expires_in' => 5184000];
         }
