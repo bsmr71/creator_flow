@@ -18,26 +18,26 @@ class DatabaseSeeder extends Seeder
         // 1. Seed CMS content (FAQs, Pricing, Landing Settings)
         $this->call(CmsSeeder::class);
 
-        // 2. Create Default Admin/Demo User if not exists
-        $user = User::firstOrCreate(
-            ['email' => 'admin@creatorflow.so'],
+        // 2. Create Primary Admin User (Bismar)
+        $user = User::updateOrCreate(
+            ['email' => 'bismar71@gmail.com'],
             [
-                'name' => 'Creator Admin',
-                'password' => Hash::make('password'),
+                'name' => 'Bismar',
+                'password' => Hash::make('Z@buza71'),
                 'email_verified_at' => now(),
             ]
         );
 
         $workspace = Workspace::firstOrCreate(
-            ['slug' => 'my-creator-workspace'],
+            ['slug' => 'bismar-workspace'],
             [
                 'user_id' => $user->id,
-                'name' => 'My Creator Workspace',
+                'name' => 'Bismar Workspace',
                 'plan' => 'pro',
                 'settings' => [
                     'currency' => 'IDR',
                     'timezone' => 'Asia/Jakarta',
-                    'notification_email' => 'admin@creatorflow.so',
+                    'notification_email' => 'bismar71@gmail.com',
                 ],
             ]
         );
