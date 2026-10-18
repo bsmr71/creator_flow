@@ -57,8 +57,10 @@ export default function IntegrationsIndex({
     };
 
     const handleOAuthConnect = (platformId) => {
-        if (platformId === 'instagram' || platformId === 'facebook') {
-            window.location.href = '/connect/instagram';
+        if (platformId === 'instagram') {
+            window.location.href = '/integrations/meta/connect?provider=instagram';
+        } else if (platformId === 'facebook') {
+            window.location.href = '/integrations/meta/connect?provider=facebook';
         } else {
             setManualPlatform(platformId);
             setShowManualModal(true);

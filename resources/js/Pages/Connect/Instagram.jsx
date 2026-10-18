@@ -142,14 +142,26 @@ export default function ConnectInstagram({ workspace, currentAccount }) {
                     {/* Header Title */}
                     <div className="text-center space-y-2">
                         <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-                            Connect your Creator or Business Instagram
+                            Hubungkan Akun Instagram Resmi
                         </h1>
                         <p className="text-xs sm:text-sm text-slate-500 leading-relaxed max-w-md mx-auto">
-                            We'll connect through Meta official login - make sure you are logged in a Creator or Business account in the browser.{' '}
-                            <a href="#help" className="text-slate-900 underline font-medium hover:text-indigo-600">
-                                Need Help?
-                            </a>
+                            Otorisasi langsung melalui Meta Graph API resmi. Pastikan Anda sudah login ke akun Instagram Profesional di browser ini.
                         </p>
+                    </div>
+
+                    {/* Official Meta Direct OAuth Primary Button */}
+                    <a
+                        href="/integrations/meta/connect?provider=instagram"
+                        className="w-full py-4 px-6 rounded-2xl font-extrabold text-sm bg-linear-to-r from-purple-600 via-pink-600 to-amber-500 hover:opacity-95 text-white shadow-lg flex items-center justify-center gap-3 transition-all cursor-pointer"
+                    >
+                        <PlatformIcon platform="instagram" className="w-5 h-5 text-white" />
+                        <span>Login Resmi via Instagram (Meta OAuth)</span>
+                    </a>
+
+                    <div className="flex items-center gap-2 justify-center text-xs text-slate-400">
+                        <span className="h-px bg-slate-200 flex-1"></span>
+                        <span>atau sambungkan via username</span>
+                        <span className="h-px bg-slate-200 flex-1"></span>
                     </div>
 
                     {/* Input Field Form */}

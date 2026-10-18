@@ -147,6 +147,33 @@ class MetaGraphApiService
             $igId = (string) ($data['id'] ?? $data['user_id'] ?? 'ig_'.time());
             $username = (string) ($data['username'] ?? $data['name'] ?? 'instagram_user');
 
+            // Fetch real posts directly from Instagram Graph API
+            $realPosts = [];
+            try {
+                $mediaRes = Http::get('https://graph.instagram.com/me/media', [
+                    'fields' => 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp',
+                    'access_token' => $accessToken,
+                ]);
+                if ($mediaRes->successful()) {
+                    $mediaData = $mediaRes->json('data', []);
+                    foreach ($mediaData as $m) {
+                        $realPosts[] = [
+                            'id' => $m['id'],
+                            'caption' => $m['caption'] ?? 'Postingan Instagram',
+                            'media_type' => $m['media_type'] ?? 'IMAGE',
+                            'media_url' => $m['media_url'] ?? $m['thumbnail_url'] ?? null,
+                            'thumbnail_url' => $m['thumbnail_url'] ?? $m['media_url'] ?? null,
+                            'permalink' => $m['permalink'] ?? "https://www.instagram.com/{$username}/",
+                            'timestamp' => $m['timestamp'] ?? now()->toIso8601String(),
+                            'like_count' => 0,
+                            'comments_count' => 0,
+                        ];
+                    }
+                }
+            } catch (Exception $e) {
+                Log::warning('Failed fetching real media from Instagram: '.$e->getMessage());
+            }
+
             return [
                 [
                     'page_id' => null,
@@ -156,6 +183,7 @@ class MetaGraphApiService
                     'instagram_username' => $username,
                     'instagram_name' => '@'.$username,
                     'instagram_avatar' => "https://api.dicebear.com/7.x/identicon/svg?seed={$username}",
+                    'posts' => $realPosts,
                 ],
             ];
         }
@@ -210,13 +238,19 @@ class MetaGraphApiService
      */
     public function getConnectedInstagramAccounts(string $userAccessToken): array
     {
+        // If it's an Instagram token, skip Facebook Pages lookup
+        if (str_starts_with($userAccessToken, 'IG') || ! str_starts_with($userAccessToken, 'EAAB')) {
+            return [];
+        }
+
         $response = Http::withToken($userAccessToken)->get("{$this->baseUrl}/me/accounts", [
             'fields' => 'id,name,access_token,instagram_business_account{id,username,name,profile_picture_url}',
         ]);
 
         if ($response->failed()) {
-            Log::error('Fetch Meta Accounts Failed', ['response' => $response->json()]);
-            throw new Exception('Gagal mengambil daftar akun Instagram dari Meta: '.$response->body());
+            Log::warning('Fetch Meta Accounts Failed, fallback to direct profile', ['response' => $response->json()]);
+
+            return [];
         }
 
         $data = $response->json('data', []);

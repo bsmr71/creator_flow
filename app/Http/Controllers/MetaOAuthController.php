@@ -144,6 +144,7 @@ class MetaOAuthController extends Controller
                     'metadata' => [
                         'page_id' => $primaryAccount['page_id'] ?? null,
                         'page_name' => $primaryAccount['page_name'] ?? null,
+                        'posts' => $primaryAccount['posts'] ?? [],
                     ],
                 ]
             );
