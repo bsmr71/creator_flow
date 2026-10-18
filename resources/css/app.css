@@ -1,0 +1,108 @@
+@import 'tailwindcss';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+@source '../views/**/*.blade.php';
+@source '../js/**/*.{jsx,tsx,js,ts}';
+
+@theme {
+    --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+    
+    --color-brand-50: #eef2ff;
+    --color-brand-100: #e0e7ff;
+    --color-brand-200: #c7d2fe;
+    --color-brand-300: #a5b4fc;
+    --color-brand-400: #818cf8;
+    --color-brand-500: #6366f1;
+    --color-brand-600: #4f46e5;
+    --color-brand-700: #4338ca;
+    --color-brand-800: #3730a3;
+    --color-brand-900: #312e81;
+
+    --color-dark-950: #07090e;
+    --color-dark-900: #0b0f19;
+    --color-dark-850: #101626;
+    --color-dark-800: #151c30;
+    --color-dark-700: #1e2842;
+    --color-dark-600: #2a375a;
+
+    --color-cf-lime: #d1fe17;
+    --color-cf-lime-hover: #bcf000;
+    --color-cf-dark: #08090d;
+    --color-cf-surface: #0f1118;
+    --color-cf-card: #151822;
+    --color-cf-border: rgba(255, 255, 255, 0.08);
+
+    --color-neon-mint: #00f5a0;
+    --color-neon-cyan: #00d9f5;
+    --color-neon-violet: #8b5cf6;
+}
+
+/* Custom glow and gradient text utilities */
+.text-gradient-aurora {
+    background: linear-gradient(135deg, #00f5a0 0%, #00d9f5 50%, #c084fc 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.text-gradient-cyan {
+    background: linear-gradient(135deg, #38bdf8 0%, #00f5a0 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.glow-aurora {
+    box-shadow: 0 0 40px -10px rgba(0, 245, 160, 0.35);
+}
+
+.glow-cyan {
+    box-shadow: 0 0 35px -8px rgba(0, 217, 245, 0.35);
+}
+
+/* Custom modern scrollbars in warm editorial theme */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background: #d4d4d8;
+    border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #a1a1aa;
+}
+
+/* Editorial Warm Card and Panel Helpers */
+.glass-panel {
+    background: #ffffff;
+    border: 1px solid #e4e4e7;
+    border-radius: 1rem;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.03);
+}
+
+.glass-card {
+    background: #ffffff;
+    border: 1px solid #e4e4e7;
+    border-radius: 1rem;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04);
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-card:hover {
+    border-color: #d4d4d8;
+    box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.06);
+    transform: translateY(-1px);
+}
+
+/* Editorial subtle shadows */
+.shadow-editorial {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.shadow-editorial-lg {
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.03);
+}

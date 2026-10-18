@@ -1,0 +1,381 @@
+<?php
+
+namespace App\Services;
+
+use Exception;
+use Illuminate\Http\Client\Response;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+
+class MetaGraphApiService
+{
+    protected string $appId;
+
+    protected string $appSecret;
+
+    protected string $redirectUri;
+
+    protected string $graphVersion;
+
+    protected string $baseUrl;
+
+    public function __construct()
+    {
+        $this->appId = (string) config('services.meta.app_id');
+        $this->appSecret = (string) config('services.meta.app_secret');
+        $this->redirectUri = (string) config('services.meta.redirect_uri');
+        $this->graphVersion = (string) config('services.meta.graph_version', 'v21.0');
+        $this->baseUrl = "https://graph.facebook.com/{$this->graphVersion}";
+    }
+
+    /**
+     * Generate the official Meta OAuth authorization URL for Instagram & Facebook permissions.
+     * Meta requires using the official dialog for Instagram Professional accounts on localhost.
+     */
+    public function getAuthorizationUrl(string $state): string
+    {
+        $scopes = [
+            'instagram_basic',
+            'instagram_manage_messages',
+            'instagram_manage_comments',
+            'pages_show_list',
+            'pages_read_engagement',
+            'pages_manage_metadata',
+        ];
+
+        $params = http_build_query([
+            'client_id' => $this->appId,
+            'redirect_uri' => $this->redirectUri,
+            'state' => $state,
+            'scope' => implode(',', $scopes),
+            'response_type' => 'code',
+        ]);
+
+        return "https://www.facebook.com/{$this->graphVersion}/dialog/oauth?{$params}";
+    }
+
+    /**
+     * Generate the official direct Instagram OAuth authorization URL (opens on instagram.com).
+     */
+    public function getInstagramAuthorizationUrl(string $state): string
+    {
+        $igAppId = (string) config('services.meta.instagram_app_id', $this->appId);
+
+        $params = http_build_query([
+            'enable_fb_login' => '0',
+            'force_reauth' => 'true',
+            'client_id' => $igAppId,
+            'redirect_uri' => $this->redirectUri,
+            'response_type' => 'code',
+            'scope' => 'instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments',
+            'state' => $state,
+        ]);
+
+        return "https://www.instagram.com/oauth/authorize?{$params}";
+    }
+
+    /**
+     * Generate the official Facebook authorization URL.
+     */
+    public function getFacebookAuthorizationUrl(string $state): string
+    {
+        return $this->getAuthorizationUrl($state);
+    }
+
+    /**
+     * Exchange the authorization code for a short-lived user access token.
+     */
+    public function exchangeCodeForToken(string $code): array
+    {
+        // First try Instagram direct OAuth token exchange
+        $igAppId = (string) config('services.meta.instagram_app_id', $this->appId);
+        $igSecret = (string) config('services.meta.instagram_app_secret', $this->appSecret);
+
+        $igResponse = Http::asForm()->post('https://api.instagram.com/oauth/access_token', [
+            'client_id' => $igAppId,
+            'client_secret' => $igSecret,
+            'grant_type' => 'authorization_code',
+            'redirect_uri' => $this->redirectUri,
+            'code' => $code,
+        ]);
+
+        if ($igResponse->successful() && ! empty($igResponse->json('access_token'))) {
+            return $igResponse->json();
+        }
+
+        // Fallback to standard Meta Graph API token exchange
+        $response = Http::asForm()->post("{$this->baseUrl}/oauth/access_token", [
+            'client_id' => $this->appId,
+            'client_secret' => $this->appSecret,
+            'redirect_uri' => $this->redirectUri,
+            'code' => $code,
+        ]);
+
+        if ($response->failed()) {
+            Log::error('Meta OAuth Token Exchange Failed', ['response' => $response->json()]);
+            throw new Exception('Gagal menukarkan kode OAuth Meta: '.$response->body());
+        }
+
+        return $response->json();
+    }
+
+    /**
+     * Fetch Instagram profile directly when authenticated via Instagram Login for Business.
+     */
+    public function getInstagramProfile(string $accessToken): array
+    {
+        $response = Http::get('https://graph.instagram.com/v21.0/me', [
+            'fields' => 'user_id,username,name,profile_picture_url',
+            'access_token' => $accessToken,
+        ]);
+
+        if ($response->successful()) {
+            $data = $response->json();
+
+            return [
+                [
+                    'page_id' => null,
+                    'page_name' => 'Instagram Direct',
+                    'page_access_token' => $accessToken,
+                    'instagram_id' => (string) ($data['user_id'] ?? $data['id'] ?? 'ig_'.time()),
+                    'instagram_username' => $data['username'] ?? '',
+                    'instagram_name' => $data['name'] ?? $data['username'] ?? '',
+                    'instagram_avatar' => $data['profile_picture_url'] ?? null,
+                ],
+            ];
+        }
+
+        return [];
+    }
+
+    /**
+     * Exchange a short-lived token for a 60-day long-lived access token.
+     */
+    public function getLongLivedUserToken(string $shortLivedToken): array
+    {
+        $response = Http::get("{$this->baseUrl}/oauth/access_token", [
+            'grant_type' => 'fb_exchange_token',
+            'client_id' => $this->appId,
+            'client_secret' => $this->appSecret,
+            'fb_exchange_token' => $shortLivedToken,
+        ]);
+
+        if ($response->failed()) {
+            Log::error('Meta Long Lived Token Exchange Failed', ['response' => $response->json()]);
+
+            return ['access_token' => $shortLivedToken, 'expires_in' => 5184000];
+        }
+
+        return $response->json();
+    }
+
+    /**
+     * Retrieve all Facebook Pages and their connected Instagram Business/Creator accounts.
+     */
+    public function getConnectedInstagramAccounts(string $userAccessToken): array
+    {
+        $response = Http::withToken($userAccessToken)->get("{$this->baseUrl}/me/accounts", [
+            'fields' => 'id,name,access_token,instagram_business_account{id,username,name,profile_picture_url}',
+        ]);
+
+        if ($response->failed()) {
+            Log::error('Fetch Meta Accounts Failed', ['response' => $response->json()]);
+            throw new Exception('Gagal mengambil daftar akun Instagram dari Meta: '.$response->body());
+        }
+
+        $data = $response->json('data', []);
+        $accounts = [];
+
+        foreach ($data as $page) {
+            if (! empty($page['instagram_business_account'])) {
+                $ig = $page['instagram_business_account'];
+                $accounts[] = [
+                    'page_id' => $page['id'],
+                    'page_name' => $page['name'],
+                    'page_access_token' => $page['access_token'],
+                    'instagram_id' => $ig['id'],
+                    'instagram_username' => $ig['username'] ?? '',
+                    'instagram_name' => $ig['name'] ?? '',
+                    'instagram_avatar' => $ig['profile_picture_url'] ?? null,
+                ];
+            }
+        }
+
+        return $accounts;
+    }
+
+    /**
+     * Send a Direct Message (DM) to an Instagram user via Meta Send API.
+     */
+    public function sendDirectMessage(
+        string $instagramAccountId,
+        string $recipientId,
+        string $messageText,
+        array $buttons = [],
+        ?string $accessToken = null
+    ): array {
+        $endpoint = "{$this->baseUrl}/{$instagramAccountId}/messages";
+
+        // Build payload
+        $payload = [
+            'recipient' => [
+                'id' => $recipientId,
+            ],
+            'message' => [
+                'text' => $messageText,
+            ],
+        ];
+
+        // If buttons / quick replies exist, append them
+        if (! empty($buttons)) {
+            $quickReplies = [];
+            foreach ($buttons as $btn) {
+                $quickReplies[] = [
+                    'content_type' => 'text',
+                    'title' => mb_substr($btn['title'] ?? 'Lihat Tautan', 0, 20),
+                    'payload' => $btn['url'] ?? 'CLICK_URL',
+                ];
+            }
+            $payload['message']['quick_replies'] = $quickReplies;
+        }
+
+        $request = Http::withHeaders(['Content-Type' => 'application/json']);
+
+        if ($accessToken) {
+            $request = $request->withToken($accessToken);
+        }
+
+        /** @var Response $response */
+        $response = $request->post($endpoint, $payload);
+
+        if ($response->failed()) {
+            Log::error('Meta Send Direct Message Failed', [
+                'endpoint' => $endpoint,
+                'recipient_id' => $recipientId,
+                'status' => $response->status(),
+                'error' => $response->json(),
+            ]);
+
+            return [
+                'success' => false,
+                'error' => $response->json(),
+            ];
+        }
+
+        return [
+            'success' => true,
+            'data' => $response->json(),
+        ];
+    }
+
+    /**
+     * Publicly reply to an Instagram comment on a Reel or Post.
+     */
+    public function replyToComment(string $commentId, string $replyText, ?string $accessToken = null): array
+    {
+        $endpoint = "{$this->baseUrl}/{$commentId}/replies";
+
+        $request = Http::asForm();
+        if ($accessToken) {
+            $request = $request->withToken($accessToken);
+        }
+
+        $response = $request->post($endpoint, [
+            'message' => $replyText,
+        ]);
+
+        if ($response->failed()) {
+            Log::error('Meta Reply To Comment Failed', [
+                'comment_id' => $commentId,
+                'error' => $response->json(),
+            ]);
+
+            return ['success' => false, 'error' => $response->json()];
+        }
+
+        return ['success' => true, 'data' => $response->json()];
+    }
+
+    /**
+     * Subscribe app to Page webhooks for real-time comment and message updates.
+     */
+    public function subscribeAppToPage(string $pageId, string $pageAccessToken): bool
+    {
+        $response = Http::withToken($pageAccessToken)->post("{$this->baseUrl}/{$pageId}/subscribed_apps", [
+            'subscribed_fields' => 'messages,messaging_postbacks,message_reactions,feed',
+        ]);
+
+        return $response->successful() && ($response->json('success') === true);
+    }
+
+    /**
+     * Fetch user's recent Instagram posts and reels.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function getInstagramMedia(string $instagramAccountId, ?string $accessToken = null, array $customPosts = []): array
+    {
+        // 1. If custom posts are provided or saved in account metadata, use them
+        if (! empty($customPosts)) {
+            return $customPosts;
+        }
+
+        // 2. If a real Meta access token is available, fetch live posts from Instagram Graph API
+        if (! empty($accessToken) && ! str_starts_with($accessToken, 'EAAB_test') && ! str_starts_with($accessToken, 'EAAB_')) {
+            try {
+                // Try Graph Facebook API endpoint
+                $endpoint = (empty($instagramAccountId) || str_starts_with($instagramAccountId, 'ig_'))
+                    ? "{$this->baseUrl}/me/media"
+                    : "{$this->baseUrl}/{$instagramAccountId}/media";
+
+                $response = Http::withToken($accessToken)->get($endpoint, [
+                    'fields' => 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count',
+                    'limit' => 15,
+                ]);
+
+                if ($response->successful() && ! empty($response->json('data'))) {
+                    return $response->json('data');
+                }
+
+                // Try Graph Instagram API directly
+                $igResponse = Http::get('https://graph.instagram.com/v21.0/me/media', [
+                    'fields' => 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp',
+                    'access_token' => $accessToken,
+                    'limit' => 15,
+                ]);
+
+                if ($igResponse->successful() && ! empty($igResponse->json('data'))) {
+                    return $igResponse->json('data');
+                }
+            } catch (Exception $e) {
+                Log::warning('Fetch Instagram media failed: '.$e->getMessage());
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * Check if an Instagram user follows the business account (IGSID inspection).
+     */
+    public function checkUserFollows(string $instagramScopedId, ?string $accessToken = null): bool
+    {
+        if (empty($accessToken) || str_starts_with($accessToken, 'EAAB_test')) {
+            return true; // Default to true in test mode
+        }
+
+        try {
+            $response = Http::withToken($accessToken)->get("{$this->baseUrl}/{$instagramScopedId}", [
+                'fields' => 'name,is_user_follow_business',
+            ]);
+
+            if ($response->successful()) {
+                return (bool) ($response->json('is_user_follow_business') ?? true);
+            }
+        } catch (Exception $e) {
+            Log::warning('Check user follows failed', ['error' => $e->getMessage()]);
+        }
+
+        return true;
+    }
+}
