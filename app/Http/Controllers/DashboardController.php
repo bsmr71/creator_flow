@@ -206,7 +206,7 @@ class DashboardController extends Controller
             ->first();
 
         $validated = $request->validate([
-            'caption' => 'required|string',
+            'caption' => 'nullable|string',
             'media_type' => 'nullable|string|in:IMAGE,VIDEO',
             'media_url' => 'nullable|string',
             'permalink' => 'nullable|string',
@@ -240,14 +240,23 @@ class DashboardController extends Controller
         }
 
         $shortId = 'post_'.substr(md5($permalink ?: microtime()), 0, 8);
+        if (! empty($permalink) && preg_match('#/(?:p|reel|tv)/([a-zA-Z0-9_-]+)#', $permalink, $pm)) {
+            $shortId = $pm[1];
+        }
+
+        $caption = ! empty(trim($validated['caption'] ?? ''))
+            ? trim($validated['caption'])
+            : ('Postingan Instagram @'.($igAccount?->username ?: 'bsmrlab'));
+
+        $mediaType = $validated['media_type'] ?? (str_contains($permalink, '/reel/') ? 'VIDEO' : 'IMAGE');
 
         $metadata = $igAccount ? ($igAccount->metadata ?? []) : [];
         $posts = $metadata['posts'] ?? [];
 
         $posts[] = [
             'id' => $shortId,
-            'caption' => $validated['caption'],
-            'media_type' => $validated['media_type'] ?? 'IMAGE',
+            'caption' => $caption,
+            'media_type' => $mediaType,
             'media_url' => $mediaUrl,
             'thumbnail_url' => $mediaUrl,
             'permalink' => $permalink ?: "https://www.instagram.com/p/{$shortId}/",

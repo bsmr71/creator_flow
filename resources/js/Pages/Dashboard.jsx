@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import AppLayout from '../Layouts/AppLayout';
 import PlatformIcon from '../Components/PlatformIcon';
 import StatusBadge from '../Components/StatusBadge';
@@ -27,7 +27,9 @@ import {
     Trash2,
     X,
     ExternalLink,
-    RefreshCw
+    RefreshCw,
+    AlertCircle,
+    Info
 } from 'lucide-react';
 
 export default function Dashboard({
@@ -40,6 +42,7 @@ export default function Dashboard({
     chartData = [],
     instagramPosts = []
 }) {
+    const { flash } = usePage().props;
     const [showAddPostModal, setShowAddPostModal] = useState(false);
     const [newPostCaption, setNewPostCaption] = useState('');
     const [newPostPermalink, setNewPostPermalink] = useState('');
@@ -65,8 +68,9 @@ export default function Dashboard({
     const handleAddPost = (e) => {
         e.preventDefault();
         setSavingPost(true);
+        const caption = newPostCaption.trim() || `Postingan Instagram @${currentUser?.username || 'bsmrlab'}`;
         router.post('/dashboard/instagram/posts', {
-            caption: newPostCaption,
+            caption: caption,
             permalink: newPostPermalink,
             media_type: newPostMediaType,
             media_url: newPostMediaUrl,
@@ -137,6 +141,35 @@ export default function Dashboard({
                         </div>
                     </div>
                 </div>
+
+                {/* Flash Notifications */}
+                {flash?.info && (
+                    <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-3 shadow-xs">
+                        <Info className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+                        <div className="flex-1 leading-relaxed">
+                            <span className="font-bold mr-1">Info Sinkronisasi:</span>
+                            {flash.info}
+                        </div>
+                    </div>
+                )}
+                {flash?.success && (
+                    <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-start gap-3 shadow-xs">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
+                        <div className="flex-1 leading-relaxed">
+                            <span className="font-bold mr-1">Berhasil:</span>
+                            {flash.success}
+                        </div>
+                    </div>
+                )}
+                {flash?.error && (
+                    <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 text-xs flex items-start gap-3 shadow-xs">
+                        <AlertCircle className="w-4 h-4 text-rose-600 mt-0.5 shrink-0" />
+                        <div className="flex-1 leading-relaxed">
+                            <span className="font-bold mr-1">Perhatian:</span>
+                            {flash.error}
+                        </div>
+                    </div>
+                )}
 
                 {/* Primary Metric Cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -270,13 +303,23 @@ export default function Dashboard({
                             <div className="w-12 h-12 rounded-2xl bg-white border border-[#e4e4e7] flex items-center justify-center mx-auto text-[#18181b] shadow-xs">
                                 <Layers className="w-6 h-6" />
                             </div>
-                            <div className="max-w-md mx-auto space-y-1">
-                                <h4 className="text-sm font-bold text-[#18181b]">Belum Ada Postingan @{currentUser?.username || 'Instagram'} di Dashboard</h4>
+                            <div className="max-w-lg mx-auto space-y-1.5">
+                                <h4 className="text-sm font-bold text-[#18181b]">
+                                    Belum Ada Postingan @{currentUser?.username || 'Instagram'} di Dashboard
+                                </h4>
                                 <p className="text-xs text-[#71717a] leading-relaxed">
-                                    Kamu bisa klik tombol <strong>"Muat Ulang Postingan"</strong> untuk menarik postingan dari akun Instagram Anda, atau menambahkan link/judul postingan secara langsung.
+                                    Akun Anda sudah terhubung. Untuk langsung memasang bot auto-reply komentar & kirim DM link otomatis, klik <strong>"+ Tambah Postingan Manual"</strong> di bawah lalu masukkan link postingan Instagram Anda.
                                 </p>
                             </div>
-                            <div className="flex flex-wrap items-center justify-center gap-2.5">
+                            <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAddPostModal(true)}
+                                    className="px-5 py-2.5 rounded-xl bg-[#18181b] hover:bg-[#27272a] text-white text-xs font-semibold inline-flex items-center gap-2 shadow-xs transition-all cursor-pointer"
+                                >
+                                    <Plus className="w-4 h-4" />
+                                    <span>+ Tambah Postingan Manual</span>
+                                </button>
                                 <button
                                     type="button"
                                     onClick={handleSyncPosts}
@@ -285,14 +328,6 @@ export default function Dashboard({
                                 >
                                     <RefreshCw className={`w-4 h-4 text-slate-600 ${syncing ? 'animate-spin' : ''}`} />
                                     <span>{syncing ? 'Menghubungi Instagram...' : `Muat Ulang Postingan @${currentUser?.username || 'Instagram'}`}</span>
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setShowAddPostModal(true)}
-                                    className="px-4 py-2.5 rounded-xl bg-[#18181b] hover:bg-[#27272a] text-white text-xs font-semibold inline-flex items-center gap-2 shadow-xs transition-all cursor-pointer"
-                                >
-                                    <Plus className="w-4 h-4" />
-                                    <span>Tambah Postingan Manual</span>
                                 </button>
                             </div>
                         </div>
@@ -525,18 +560,17 @@ export default function Dashboard({
                             {/* Caption Postingan */}
                             <div className="space-y-1.5">
                                 <label className="text-xs font-semibold text-[#18181b]">
-                                    Caption Postingan <span className="text-rose-500">*</span>
+                                    Caption / Keterangan Postingan (Opsional)
                                 </label>
                                 <textarea
-                                    required
                                     rows={3}
                                     value={newPostCaption}
                                     onChange={(e) => setNewPostCaption(e.target.value)}
-                                    placeholder="Contoh: Komen 'MAU' untuk dapatkan free template design & sistem otomatisasi CreatorFlow 🚀"
+                                    placeholder="Contoh: Komen 'MAU' untuk dapatkan link eksklusif 🚀"
                                     className="w-full px-3.5 py-2.5 rounded-xl border border-[#e4e4e7] bg-[#fafaf8] text-xs text-[#18181b] focus:border-[#18181b] focus:ring-1 focus:ring-[#18181b] outline-hidden resize-none"
                                 />
                                 <span className="text-[11px] text-[#71717a]">
-                                    Tip: Sertakan kata ajakan (Call-to-Action) seperti komen "MAU", "INFO", atau "LINK".
+                                    Bisa dikosongkan jika hanya ingin memasukkan link postingan.
                                 </span>
                             </div>
 
@@ -598,7 +632,7 @@ export default function Dashboard({
                                 </button>
                                 <button
                                     type="submit"
-                                    disabled={savingPost || !newPostCaption.trim()}
+                                    disabled={savingPost}
                                     className="px-5 py-2.5 rounded-xl bg-[#18181b] hover:bg-[#27272a] disabled:opacity-50 text-white text-xs font-semibold flex items-center gap-2 shadow-xs transition-all cursor-pointer"
                                 >
                                     <Plus className="w-4 h-4" />
