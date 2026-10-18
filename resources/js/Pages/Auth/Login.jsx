@@ -55,43 +55,8 @@ export default function Login({ status }) {
                     <div className="relative flex items-center justify-center my-1">
                         <div className="border-t border-[#e4e4e7] w-full"></div>
                         <span className="bg-white px-3 text-[10px] font-bold text-[#a1a1aa] uppercase tracking-wider absolute">
-                            Atau Akun Demo / Email
+                            Atau Masuk dengan Email
                         </span>
-                    </div>
-
-                    {/* Quick Demo Credentials Autofill */}
-                    <div className="p-3 rounded-xl bg-[#fafaf8] border border-[#e4e4e7] space-y-2">
-                        <span className="text-[10px] font-semibold text-[#71717a] uppercase tracking-wider block">
-                            💡 Akun Cepat (Klik untuk isi otomatis):
-                        </span>
-                        <div className="flex gap-2">
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setData({
-                                        ...data,
-                                        email: 'admin@creatorflow.so',
-                                        password: 'password',
-                                    });
-                                }}
-                                className="flex-1 py-1.5 px-2 rounded-lg bg-white hover:bg-[#f4f4f5] border border-[#e4e4e7] text-[11px] font-semibold text-[#18181b] text-center transition-all shadow-xs cursor-pointer"
-                            >
-                                admin@creatorflow.so
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setData({
-                                        ...data,
-                                        email: 'demo@creatorflow.so',
-                                        password: 'password',
-                                    });
-                                }}
-                                className="flex-1 py-1.5 px-2 rounded-lg bg-white hover:bg-[#f4f4f5] border border-[#e4e4e7] text-[11px] font-semibold text-[#52525b] text-center transition-all shadow-xs cursor-pointer"
-                            >
-                                demo@creatorflow.so
-                            </button>
-                        </div>
                     </div>
 
                     <form onSubmit={submit} className="space-y-4">
