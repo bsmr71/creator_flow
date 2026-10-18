@@ -208,56 +208,95 @@ class MetaOAuthController extends Controller
      */
     public function manualConnect(Request $request): RedirectResponse
     {
-        $workspace = $request->user()->currentWorkspace();
+        try {
+            $workspace = $request->user()->currentWorkspace();
 
-        $validated = $request->validate([
-            'platform' => 'required|in:instagram,whatsapp,tiktok,facebook',
-            'username' => 'required|string',
-            'account_id' => 'nullable|string',
-            'access_token' => 'nullable|string',
-            'display_name' => 'nullable|string',
-        ]);
+            $validated = $request->validate([
+                'platform' => 'required|in:instagram,whatsapp,tiktok,facebook',
+                'username' => 'required|string',
+                'account_id' => 'nullable|string',
+                'access_token' => 'nullable|string',
+                'display_name' => 'nullable|string',
+            ]);
 
-        $cleanUsername = ltrim(trim($validated['username']), '@');
-        $accountId = $validated['account_id'] ?: 'cf_'.substr(md5($cleanUsername), 0, 12);
-        $token = $validated['access_token'] ?: 'EAAB_'.bin2hex(random_bytes(24));
-        $displayName = $validated['display_name'] ?: '@'.$cleanUsername;
-        $avatar = "https://api.dicebear.com/7.x/identicon/svg?seed={$cleanUsername}";
-
-        $posts = [];
-        if ($validated['platform'] === 'instagram' && ! empty($validated['access_token'])) {
-            try {
-                $metaService = app(MetaGraphApiService::class);
-                $posts = $metaService->fetchLiveInstagramMedia($accountId, $token);
-            } catch (Exception $e) {
-                // ignore
+            $cleanUsername = preg_replace('/[^a-zA-Z0-9._]/', '', ltrim(trim($validated['username'] ?? ''), '@'));
+            if (empty($cleanUsername)) {
+                $cleanUsername = 'bsmrlab';
             }
-        }
 
-        SocialAccount::updateOrCreate(
-            [
-                'workspace_id' => $workspace->id,
-                'platform' => $validated['platform'],
-            ],
-            [
-                'account_id' => $accountId,
-                'username' => $cleanUsername,
-                'display_name' => $displayName,
-                'avatar_url' => $avatar,
-                'access_token' => $token,
-                'is_connected' => true,
-                'status' => 'active',
-                'metadata' => [
-                    'posts' => $posts,
+            $existingAccount = SocialAccount::where('workspace_id', $workspace->id)
+                ->where('platform', $validated['platform'])
+                ->first();
+
+            $providedAccountId = trim($validated['account_id'] ?? '');
+            $accountId = ! empty($providedAccountId)
+                ? $providedAccountId
+                : ($existingAccount?->account_id && ! str_starts_with($existingAccount->account_id, 'cf_') && ! str_starts_with($existingAccount->account_id, 'ig_')
+                    ? $existingAccount->account_id
+                    : 'cf_'.substr(md5($cleanUsername), 0, 12));
+
+            $providedToken = trim($validated['access_token'] ?? '');
+            $token = ! empty($providedToken)
+                ? $providedToken
+                : ($existingAccount?->access_token ?: 'EAAB_'.bin2hex(random_bytes(24)));
+
+            $providedDisplayName = trim($validated['display_name'] ?? '');
+            $displayName = ! empty($providedDisplayName)
+                ? $providedDisplayName
+                : ($existingAccount?->display_name ?: '@'.$cleanUsername);
+
+            $avatar = $existingAccount?->avatar_url ?: "https://api.dicebear.com/7.x/identicon/svg?seed={$cleanUsername}";
+            if (strtolower($cleanUsername) === 'bsmrlab') {
+                $avatar = asset('images/bsmrlab_avatar.jpg');
+            }
+
+            $posts = $existingAccount?->metadata['posts'] ?? [];
+
+            // If an access token is provided, attempt live sync of posts
+            if ($validated['platform'] === 'instagram' && ! empty($token) && ! str_starts_with($token, 'EAAB_test')) {
+                try {
+                    $metaService = app(MetaGraphApiService::class);
+                    $livePosts = $metaService->fetchLiveInstagramMedia($accountId, $token);
+                    if (! empty($livePosts)) {
+                        $posts = $livePosts;
+                    }
+                } catch (\Throwable $e) {
+                    Log::warning('Failed fetching live posts on manual connect: '.$e->getMessage());
+                }
+            }
+
+            SocialAccount::updateOrCreate(
+                [
+                    'workspace_id' => $workspace->id,
+                    'platform' => $validated['platform'],
                 ],
-            ]
-        );
+                [
+                    'account_id' => $accountId,
+                    'username' => $cleanUsername,
+                    'display_name' => $displayName,
+                    'avatar_url' => $avatar,
+                    'access_token' => $token,
+                    'is_connected' => true,
+                    'status' => 'active',
+                    'metadata' => [
+                        'posts' => $posts,
+                    ],
+                ]
+            );
 
-        $msg = "Akun @{$cleanUsername} ({$validated['platform']}) berhasil dihubungkan dan status aktif!";
-        if (! empty($posts)) {
-            $msg .= ' Berhasil memuat '.count($posts).' postingan langsung dari Instagram!';
+            $msg = "Akun @{$cleanUsername} ({$validated['platform']}) berhasil dihubungkan dan status aktif!";
+            if (! empty($posts)) {
+                $msg .= ' Berhasil memuat '.count($posts).' postingan langsung dari Instagram!';
+            }
+
+            return redirect()->route('integrations.index')->with('success', $msg);
+        } catch (\Throwable $e) {
+            Log::error('Manual Connect Exception: '.$e->getMessage(), ['trace' => $e->getTraceAsString()]);
+
+            return redirect()->route('integrations.index')->with(
+                'error',
+                'Gagal menghubungkan akun: '.$e->getMessage()
+            );
         }
-
-        return redirect()->route('integrations.index')->with('success', $msg);
     }
 }

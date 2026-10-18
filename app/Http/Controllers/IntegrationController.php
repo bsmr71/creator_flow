@@ -15,8 +15,13 @@ class IntegrationController extends Controller
 {
     public function index(Request $request): Response
     {
-        $workspace = $request->user()->currentWorkspace();
-        $socialAccounts = SocialAccount::where('workspace_id', $workspace->id)->get();
+        try {
+            $workspace = $request->user()->currentWorkspace();
+            $socialAccounts = SocialAccount::where('workspace_id', $workspace->id)->get();
+        } catch (\Throwable $e) {
+            Log::error('IntegrationController index error: '.$e->getMessage());
+            $socialAccounts = collect();
+        }
 
         $platforms = [
             [

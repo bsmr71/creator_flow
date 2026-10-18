@@ -192,6 +192,32 @@ export default function IntegrationsIndex({
                 </div>
 
 
+                {/* Flash Notifications */}
+                {flash?.success && (
+                    <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-center justify-between shadow-xs">
+                        <div className="flex items-center gap-2.5">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                            <span className="font-medium">{flash.success}</span>
+                        </div>
+                    </div>
+                )}
+                {flash?.error && (
+                    <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 text-xs flex items-center justify-between shadow-xs">
+                        <div className="flex items-center gap-2.5">
+                            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                            <span className="font-medium">{flash.error}</span>
+                        </div>
+                    </div>
+                )}
+                {flash?.info && (
+                    <div className="p-4 rounded-2xl bg-sky-50 border border-sky-200 text-sky-900 text-xs flex items-center justify-between shadow-xs">
+                        <div className="flex items-center gap-2.5">
+                            <AlertCircle className="w-4 h-4 text-sky-600 shrink-0" />
+                            <span className="font-medium">{flash.info}</span>
+                        </div>
+                    </div>
+                )}
+
                 {/* API Status Notice */}
                 {!metaAppConfigured && (
                     <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-3 shadow-xs">
@@ -254,12 +280,12 @@ export default function IntegrationsIndex({
                                         <div className="p-3 rounded-2xl bg-[#fafaf8] border border-[#e4e4e7] flex items-center justify-between">
                                             <div className="flex items-center gap-2.5">
                                                 <div className="w-8 h-8 rounded-full bg-[#18181b] text-white font-bold text-xs flex items-center justify-center">
-                                                    @{p.account.username.charAt(0).toUpperCase()}
+                                                    @{p.account?.username ? p.account.username.charAt(0).toUpperCase() : 'U'}
                                                 </div>
                                                 <div>
-                                                    <div className="text-xs font-bold text-[#18181b]">@{p.account.username}</div>
+                                                    <div className="text-xs font-bold text-[#18181b]">@{p.account?.username || 'user'}</div>
                                                     <div className="text-[10px] text-emerald-700 font-medium">
-                                                        API Terhubung • ID: {p.account.account_id || 'Active'}
+                                                        API Terhubung • ID: {p.account?.account_id || 'Active'}
                                                     </div>
                                                 </div>
                                             </div>
@@ -469,8 +495,38 @@ export default function IntegrationsIndex({
                                         />
                                     </div>
                                     <p className="text-[10px] text-[#71717a]">
-                                        Tidak perlu token atau password. Akun akan langsung terhubung aktif.
+                                        Akun akan dihubungkan ke workspace untuk otomasi DM dan komentar.
                                     </p>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-[#18181b] flex items-center justify-between">
+                                        <span>Meta Access Token (Opsional / Graph API Explorer):</span>
+                                        <span className="text-[10px] text-purple-600 font-semibold">Tarik postingan asli</span>
+                                    </label>
+                                    <textarea
+                                        rows={3}
+                                        value={manualAccessToken}
+                                        onChange={(e) => setManualAccessToken(e.target.value.trim())}
+                                        placeholder="Tempel Access Token dari Meta Graph API Explorer (EAAB... atau IGQW...)"
+                                        className="w-full px-3 py-2 rounded-xl bg-[#fafaf8] border border-[#e4e4e7] text-xs font-mono text-[#18181b] focus:outline-hidden focus:border-[#18181b] resize-none"
+                                    />
+                                    <p className="text-[10px] text-[#71717a]">
+                                        Jika diisi Access Token dari <a href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noreferrer" className="underline text-purple-600 hover:text-purple-700">Meta Graph API Explorer</a>, sistem akan langsung menarik postingan asli dari akun Instagram Anda.
+                                    </p>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-[#18181b]">
+                                        Instagram Account ID (Opsional):
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={manualAccountId}
+                                        onChange={(e) => setManualAccountId(e.target.value.trim())}
+                                        placeholder="Contoh: 29390086840577217 (kosongkan jika tidak tahu)"
+                                        className="w-full px-3 py-2.5 rounded-xl bg-[#fafaf8] border border-[#e4e4e7] text-xs font-semibold text-[#18181b] focus:outline-hidden focus:border-[#18181b]"
+                                    />
                                 </div>
 
 
