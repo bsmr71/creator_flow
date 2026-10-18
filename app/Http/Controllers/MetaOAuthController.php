@@ -224,6 +224,16 @@ class MetaOAuthController extends Controller
         $displayName = $validated['display_name'] ?: '@'.$cleanUsername;
         $avatar = "https://api.dicebear.com/7.x/identicon/svg?seed={$cleanUsername}";
 
+        $posts = [];
+        if ($validated['platform'] === 'instagram' && ! empty($validated['access_token'])) {
+            try {
+                $metaService = app(MetaGraphApiService::class);
+                $posts = $metaService->fetchLiveInstagramMedia($accountId, $token);
+            } catch (Exception $e) {
+                // ignore
+            }
+        }
+
         SocialAccount::updateOrCreate(
             [
                 'workspace_id' => $workspace->id,
@@ -237,12 +247,17 @@ class MetaOAuthController extends Controller
                 'access_token' => $token,
                 'is_connected' => true,
                 'status' => 'active',
+                'metadata' => [
+                    'posts' => $posts,
+                ],
             ]
         );
 
-        return redirect()->route('integrations.index')->with(
-            'success',
-            "Akun @{$cleanUsername} ({$validated['platform']}) berhasil dihubungkan dan status aktif!"
-        );
+        $msg = "Akun @{$cleanUsername} ({$validated['platform']}) berhasil dihubungkan dan status aktif!";
+        if (! empty($posts)) {
+            $msg .= ' Berhasil memuat '.count($posts).' postingan langsung dari Instagram!';
+        }
+
+        return redirect()->route('integrations.index')->with('success', $msg);
     }
 }
