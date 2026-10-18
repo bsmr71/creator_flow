@@ -24,28 +24,32 @@ import {
 } from 'lucide-react';
 
 export default function AutomationCreate({ socialAccounts = [], recentPost, mediaList = [] }) {
-    const defaultPost = recentPost || {
-        id: 'post_tkangcapu_1',
-        username: 'tkangcapu',
-        caption: 'Ciee yang katanya mau jadi jalur ekspor... Pikir terima tapi kok pertalite juga masih suka abis wkwk...',
-        image: '/images/tkangcapu_post.jpg',
-        likes: 'Be the first to like this',
-    };
-
-    const allMedia = mediaList.length > 0 ? mediaList : [
-        defaultPost,
-        {
-            id: 'post_tkangcapu_2',
-            username: defaultPost.username || 'tkangcapu',
-            caption: 'Tips automasi Instagram Creator tanpa repot balas DM manual satu per satu 🚀 Komen "LINK" buat template gratis!',
-            image: '/images/tkangcapu_post.jpg',
-            likes: '142 likes',
-        }
-    ];
+    const igAccount = socialAccounts.find((a) => a.platform === 'instagram') || socialAccounts[0];
+    const currentUsername = igAccount?.username || 'bsmrlab';
+    const currentAvatar = igAccount?.avatar_url || (igAccount?.metadata?.avatar_url) || `https://api.dicebear.com/7.x/identicon/svg?seed=${currentUsername}`;
 
     const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
     const queryPostId = urlParams ? urlParams.get('post_id') : null;
-    const initialPost = (queryPostId && allMedia.find((p) => p.id === queryPostId)) || defaultPost;
+    const queryPostTitle = urlParams ? urlParams.get('post_title') : null;
+
+    const defaultPost = recentPost || (mediaList.length > 0 ? mediaList[0] : {
+        id: queryPostId || 'post_current',
+        username: currentUsername,
+        caption: queryPostTitle || `Postingan Instagram @${currentUsername}`,
+        image: currentAvatar,
+        media_url: currentAvatar,
+        likes: '0 likes',
+    });
+
+    const allMedia = mediaList.length > 0 ? mediaList : [defaultPost];
+    const initialPost = (queryPostId && allMedia.find((p) => p.id === queryPostId)) || (queryPostId ? {
+        id: queryPostId,
+        username: currentUsername,
+        caption: queryPostTitle || `Postingan Instagram (${queryPostId})`,
+        image: currentAvatar,
+        media_url: currentAvatar,
+        likes: '0 likes',
+    } : defaultPost);
 
     // Step 1: Selected post & target post type
     const [selectedPost, setSelectedPost] = useState(initialPost);
@@ -217,11 +221,17 @@ export default function AutomationCreate({ socialAccounts = [], recentPost, medi
 
                                     {/* IG Post Image */}
                                     <div className="relative aspect-square w-full bg-zinc-900 overflow-hidden">
-                                        <img
-                                            src={selectedPost.media_url || selectedPost.image || '/images/tkangcapu_post.jpg'}
-                                            alt="Instagram post"
-                                            className="w-full h-full object-cover"
-                                        />
+                                        {selectedPost.media_url || selectedPost.thumbnail_url || selectedPost.image ? (
+                                            <img
+                                                src={selectedPost.thumbnail_url || selectedPost.media_url || selectedPost.image}
+                                                alt="Instagram post"
+                                                className="w-full h-full object-cover"
+                                            />
+                                        ) : (
+                                            <div className="w-full h-full bg-linear-to-tr from-[#833ab4] via-[#fd1d1d] to-[#fcb045] flex items-center justify-center p-4 text-center text-white text-xs font-semibold">
+                                                {selectedPost.caption || 'Instagram Post'}
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Action Icons */}
@@ -240,7 +250,7 @@ export default function AutomationCreate({ socialAccounts = [], recentPost, medi
                                         </div>
 
                                         <div className="text-[10px] leading-tight text-zinc-200">
-                                            <span className="font-bold mr-1">{selectedPost.username || 'tkangcapu'}</span>
+                                            <span className="font-bold mr-1">{selectedPost.username || currentUsername}</span>
                                             <span className="text-zinc-400">
                                                 {selectedPost.caption}
                                             </span>
@@ -305,11 +315,17 @@ export default function AutomationCreate({ socialAccounts = [], recentPost, medi
                                         <div className="flex items-center gap-3">
                                             {/* Thumbnail with Green Checkmark */}
                                             <div className="relative w-16 h-16 rounded-xl border-2 border-emerald-500 overflow-hidden shadow-xs">
-                                                <img
-                                                    src={selectedPost.thumbnail_url || selectedPost.media_url || selectedPost.image || '/images/tkangcapu_post.jpg'}
-                                                    alt="Selected post"
-                                                    className="w-full h-full object-cover"
-                                                />
+                                                {selectedPost.thumbnail_url || selectedPost.media_url || selectedPost.image ? (
+                                                    <img
+                                                        src={selectedPost.thumbnail_url || selectedPost.media_url || selectedPost.image}
+                                                        alt="Selected post"
+                                                        className="w-full h-full object-cover"
+                                                    />
+                                                ) : (
+                                                    <div className="w-full h-full bg-linear-to-tr from-[#833ab4] via-[#fd1d1d] to-[#fcb045] flex items-center justify-center text-white text-[10px] font-bold">
+                                                        IG
+                                                    </div>
+                                                )}
                                                 <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center">
                                                     <Check className="w-2.5 h-2.5 stroke-[3]" />
                                                 </div>

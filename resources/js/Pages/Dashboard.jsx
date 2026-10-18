@@ -307,12 +307,21 @@ export default function Dashboard({
                                     <div>
                                         {/* Post Image Container */}
                                         <div className="relative aspect-square w-full bg-slate-900 overflow-hidden">
-                                            <img
-                                                src={post.thumbnail_url || post.media_url || '/images/tkangcapu_post.jpg'}
-                                                alt={post.caption}
-                                                referrerPolicy="no-referrer"
-                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                            />
+                                            {post.thumbnail_url || post.media_url ? (
+                                                <img
+                                                    src={post.thumbnail_url || post.media_url}
+                                                    alt={post.caption}
+                                                    referrerPolicy="no-referrer"
+                                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                                />
+                                            ) : (
+                                                <div className="w-full h-full bg-linear-to-tr from-[#833ab4] via-[#fd1d1d] to-[#fcb045] flex flex-col items-center justify-center p-4 text-center text-white">
+                                                    <PlatformIcon platform="instagram" className="w-10 h-10 mb-2 opacity-90" />
+                                                    <span className="text-xs font-semibold line-clamp-3 px-2">
+                                                        {post.caption || 'Postingan Instagram'}
+                                                    </span>
+                                                </div>
+                                            )}
 
                                             {/* Media Type Badge */}
                                             <div className="absolute top-3 left-3 px-2 py-1 rounded-lg bg-black/60 backdrop-blur-xs text-white text-[10px] font-bold flex items-center gap-1">

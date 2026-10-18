@@ -267,39 +267,6 @@ class IntegrationController extends Controller
             $avatar = ($validated['avatar_url'] ?? null) ?: "https://api.dicebear.com/7.x/identicon/svg?seed={$cleanUsername}";
         }
 
-        // Dedicated post setup without dummy crossover
-        if (strtolower($cleanUsername) === 'bsmrlab') {
-            $displayName = 'Bismar';
-            $avatar = '/images/bsmrlab_avatar.jpg';
-            $initialPosts = [
-                [
-                    'id' => 'post_bsmrlab_real_1',
-                    'caption' => 'Ciee yang katanya mau jadi jalur ekspor... Pikir terima tapi kok pertalite juga masih suka abis wkwk...',
-                    'media_type' => 'IMAGE',
-                    'media_url' => '/images/bsmrlab_real_post.jpg',
-                    'thumbnail_url' => '/images/bsmrlab_real_post.jpg',
-                    'permalink' => 'https://www.instagram.com/p/bsmrlab_real_1/',
-                    'timestamp' => '2025-05-14T10:00:00+07:00',
-                    'like_count' => 84,
-                    'comments_count' => 19,
-                ],
-            ];
-        } else {
-            $initialPosts = [
-                [
-                    'id' => 'post_'.$cleanUsername.'_1',
-                    'caption' => "Halo semuanya! Komen 'INFO' untuk dapatkan link dan penawaran eksklusif dari @{$cleanUsername} langsung di DM 🚀",
-                    'media_type' => 'IMAGE',
-                    'media_url' => $avatar,
-                    'thumbnail_url' => $avatar,
-                    'permalink' => "https://www.instagram.com/{$cleanUsername}/",
-                    'timestamp' => now()->subDay()->toIso8601String(),
-                    'like_count' => 65,
-                    'comments_count' => 12,
-                ],
-            ];
-        }
-
         SocialAccount::updateOrCreate(
             [
                 'workspace_id' => $workspace->id,
@@ -317,7 +284,7 @@ class IntegrationController extends Controller
                     'followers_count' => $validated['followers_count'] ?? '1.6K',
                     'posts_count' => $validated['posts_count'] ?? '18',
                     'connected_method' => 'official_instagram_oauth_consent',
-                    'posts' => $initialPosts,
+                    'posts' => [],
                 ],
             ]
         );

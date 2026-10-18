@@ -49,14 +49,7 @@ class AutomationController extends Controller
             $customPosts,
             $username
         );
-        $recentPost = $mediaList[0] ?? [
-            'id' => 'post_bsmrlab_1',
-            'username' => $username,
-            'caption' => 'Komen "MAU" untuk dapatkan template dan sistem otomasi Instagram otomatis 🚀',
-            'image' => 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=80',
-            'posted_at' => 'BARU SAJA',
-            'likes' => '524 suka',
-        ];
+        $recentPost = $mediaList[0] ?? null;
 
         return Inertia::render('Automations/Create', [
             'socialAccounts' => $socialAccounts,

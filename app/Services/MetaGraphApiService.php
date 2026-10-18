@@ -422,7 +422,82 @@ class MetaGraphApiService
     }
 
     /**
-     * Fetch user's recent Instagram posts and reels.
+     * Fetch live posts from Meta's Instagram Graph API.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function fetchLiveInstagramMedia(string $instagramAccountId, string $accessToken): array
+    {
+        if (empty($accessToken) || str_starts_with($accessToken, 'EAAB_test')) {
+            return [];
+        }
+
+        $endpoints = [];
+
+        // For direct Instagram user tokens:
+        if (str_starts_with($accessToken, 'IG') || ! str_starts_with($accessToken, 'EAAB')) {
+            if (! empty($instagramAccountId) && ! str_starts_with($instagramAccountId, 'ig_')) {
+                $endpoints[] = "https://graph.instagram.com/v21.0/{$instagramAccountId}/media";
+                $endpoints[] = "https://graph.instagram.com/{$instagramAccountId}/media";
+            }
+            $endpoints[] = 'https://graph.instagram.com/v21.0/me/media';
+            $endpoints[] = 'https://graph.instagram.com/me/media';
+        } else {
+            // For Facebook Page tokens:
+            if (! empty($instagramAccountId) && ! str_starts_with($instagramAccountId, 'ig_')) {
+                $endpoints[] = "{$this->baseUrl}/{$instagramAccountId}/media";
+            }
+            $endpoints[] = "{$this->baseUrl}/me/media";
+        }
+
+        $fieldSets = [
+            'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count',
+            'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp',
+            'id,caption,media_url,permalink',
+        ];
+
+        foreach ($endpoints as $url) {
+            foreach ($fieldSets as $fields) {
+                try {
+                    $response = Http::get($url, [
+                        'fields' => $fields,
+                        'access_token' => $accessToken,
+                        'limit' => 25,
+                    ]);
+
+                    if ($response->successful()) {
+                        $rawPosts = $response->json('data', []);
+                        if (! empty($rawPosts)) {
+                            $posts = [];
+                            foreach ($rawPosts as $p) {
+                                $mediaUrl = $p['media_url'] ?? $p['thumbnail_url'] ?? null;
+                                $posts[] = [
+                                    'id' => (string) $p['id'],
+                                    'caption' => $p['caption'] ?? 'Postingan Instagram',
+                                    'media_type' => $p['media_type'] ?? 'IMAGE',
+                                    'media_url' => $mediaUrl,
+                                    'thumbnail_url' => $p['thumbnail_url'] ?? $mediaUrl,
+                                    'permalink' => $p['permalink'] ?? ('https://www.instagram.com/p/'.$p['id'].'/'),
+                                    'timestamp' => $p['timestamp'] ?? now()->toIso8601String(),
+                                    'like_count' => (int) ($p['like_count'] ?? 0),
+                                    'comments_count' => (int) ($p['comments_count'] ?? 0),
+                                ];
+                            }
+
+                            return $posts;
+                        }
+                    }
+                } catch (Exception $e) {
+                    // continue
+                }
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * Fetch user's recent Instagram posts and reels without dummy mock data.
      *
      * @return array<int, array<string, mixed>>
      */
@@ -432,127 +507,29 @@ class MetaGraphApiService
         array $customPosts = [],
         ?string $username = null
     ): array {
-        // 1. If custom posts are provided or saved in account metadata, use them
-        if (! empty($customPosts)) {
-            return $customPosts;
-        }
-
-        // 2. If a real Meta access token is available, fetch live posts from Instagram Graph API
-        if (! empty($accessToken) && ! str_starts_with($accessToken, 'EAAB_test') && ! str_starts_with($accessToken, 'EAAB_')) {
-            try {
-                // If it's an Instagram token
-                if (str_starts_with($accessToken, 'IG') || ! str_starts_with($accessToken, 'EAAB')) {
-                    $endpoints = [
-                        "https://graph.instagram.com/v21.0/{$instagramAccountId}/media",
-                        "https://graph.instagram.com/{$instagramAccountId}/media",
-                        'https://graph.instagram.com/v21.0/me/media',
-                        'https://graph.instagram.com/me/media',
-                    ];
-
-                    foreach ($endpoints as $endpoint) {
-                        try {
-                            $res = Http::get($endpoint, [
-                                'fields' => 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp',
-                                'access_token' => $accessToken,
-                                'limit' => 20,
-                            ]);
-
-                            if ($res->successful() && ! empty($res->json('data'))) {
-                                return $res->json('data');
-                            }
-                        } catch (Exception $e) {
-                            // continue
-                        }
-                    }
-                } else {
-                    // Facebook Graph API endpoint
-                    $endpoint = (empty($instagramAccountId) || str_starts_with($instagramAccountId, 'ig_'))
-                        ? "{$this->baseUrl}/me/media"
-                        : "{$this->baseUrl}/{$instagramAccountId}/media";
-
-                    $response = Http::withToken($accessToken)->get($endpoint, [
-                        'fields' => 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count',
-                        'limit' => 20,
-                    ]);
-
-                    if ($response->successful() && ! empty($response->json('data'))) {
-                        return $response->json('data');
-                    }
-                }
-            } catch (Exception $e) {
-                Log::warning('Fetch Instagram media failed: '.$e->getMessage());
+        // 1. If an access token is available, always query live posts from Meta Graph API
+        if (! empty($accessToken) && ! str_starts_with($accessToken, 'EAAB_test')) {
+            $livePosts = $this->fetchLiveInstagramMedia($instagramAccountId, $accessToken);
+            if (! empty($livePosts)) {
+                return $livePosts;
             }
         }
 
-        // 3. Fallback to default posts for account
-        if ($username) {
-            return $this->getDefaultPostsForAccount($username);
-        }
+        // 2. Return user's custom posts, filtering out any old dummy/sample posts
+        $cleanPosts = array_values(array_filter($customPosts, function ($p) {
+            $id = (string) ($p['id'] ?? '');
+            $caption = (string) ($p['caption'] ?? '');
+            if (str_starts_with($id, 'post_bsmrlab_real_') || str_starts_with($id, 'post_bsmrlab_2') || str_starts_with($id, 'post_bsmrlab_3')) {
+                return false;
+            }
+            if (str_contains($caption, 'Ciee yang katanya mau jadi') || str_contains($caption, 'Build fast & automate') || str_contains($caption, '3 Rahasia naikin omset')) {
+                return false;
+            }
 
-        return [];
-    }
+            return true;
+        }));
 
-    /**
-     * Default curated posts for connected accounts (e.g. @bsmrlab) when API is restricted.
-     *
-     * @return array<int, array<string, mixed>>
-     */
-    public function getDefaultPostsForAccount(string $username = 'bsmrlab', ?string $avatarUrl = null): array
-    {
-        $cleanUsername = strtolower(ltrim(trim($username), '@'));
-        $avatar = $avatarUrl ?: (file_exists(public_path('images/bsmrlab_avatar.jpg')) ? asset('images/bsmrlab_avatar.jpg') : "https://api.dicebear.com/7.x/identicon/svg?seed={$cleanUsername}");
-
-        if ($cleanUsername === 'bsmrlab') {
-            return [
-                [
-                    'id' => 'post_bsmrlab_real_1',
-                    'caption' => 'Ciee yang katanya mau jadi jalur ekspor... Pikir terima tapi kok pertalite juga masih suka abis wkwk... #creator #automation',
-                    'media_type' => 'IMAGE',
-                    'media_url' => asset('images/bsmrlab_real_post.jpg'),
-                    'thumbnail_url' => asset('images/bsmrlab_real_post.jpg'),
-                    'permalink' => 'https://www.instagram.com/p/bsmrlab_real_1/',
-                    'timestamp' => '2025-05-14T10:00:00+07:00',
-                    'like_count' => 84,
-                    'comments_count' => 19,
-                ],
-                [
-                    'id' => 'post_bsmrlab_2',
-                    'caption' => 'Build fast & automate your Instagram DM workflows with CreatorFlow. Komen "WORKFLOW" untuk dapetin free blueprint & access link! 🚀',
-                    'media_type' => 'IMAGE',
-                    'media_url' => asset('images/bsmrlab_avatar_hq.jpg'),
-                    'thumbnail_url' => asset('images/bsmrlab_avatar_hq.jpg'),
-                    'permalink' => 'https://www.instagram.com/p/bsmrlab_workflow/',
-                    'timestamp' => now()->subDays(2)->toIso8601String(),
-                    'like_count' => 142,
-                    'comments_count' => 38,
-                ],
-                [
-                    'id' => 'post_bsmrlab_3',
-                    'caption' => '3 Rahasia naikin omset jualan lewat DM Instagram tanpa harus balas manual satu per satu 💡 Komen "MAU" di bawah min bakal kirim panduannya!',
-                    'media_type' => 'IMAGE',
-                    'media_url' => asset('images/tkangcapu_post.jpg'),
-                    'thumbnail_url' => asset('images/tkangcapu_post.jpg'),
-                    'permalink' => 'https://www.instagram.com/p/bsmrlab_tips/',
-                    'timestamp' => now()->subDays(5)->toIso8601String(),
-                    'like_count' => 215,
-                    'comments_count' => 56,
-                ],
-            ];
-        }
-
-        return [
-            [
-                'id' => 'post_'.$cleanUsername.'_1',
-                'caption' => "Halo semuanya! Komen 'INFO' untuk dapatkan link dan penawaran eksklusif dari @{$cleanUsername} langsung di DM 🚀",
-                'media_type' => 'IMAGE',
-                'media_url' => $avatar,
-                'thumbnail_url' => $avatar,
-                'permalink' => "https://www.instagram.com/{$cleanUsername}/",
-                'timestamp' => now()->subDay()->toIso8601String(),
-                'like_count' => 95,
-                'comments_count' => 24,
-            ],
-        ];
+        return $cleanPosts;
     }
 
     /**

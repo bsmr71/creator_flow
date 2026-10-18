@@ -124,19 +124,36 @@ class DashboardController extends Controller
 
         $customPosts = $igAccount->metadata['posts'] ?? [];
 
+        // Purge any mock/dummy posts from metadata
+        $cleanCustomPosts = array_values(array_filter($customPosts, function ($p) {
+            $id = (string) ($p['id'] ?? '');
+            $caption = (string) ($p['caption'] ?? '');
+            if (str_starts_with($id, 'post_bsmrlab_real_') || str_starts_with($id, 'post_bsmrlab_2') || str_starts_with($id, 'post_bsmrlab_3')) {
+                return false;
+            }
+            if (str_contains($caption, 'Ciee yang katanya mau jadi') || str_contains($caption, 'Build fast & automate') || str_contains($caption, '3 Rahasia naikin omset')) {
+                return false;
+            }
+
+            return true;
+        }));
+
+        if ($igAccount && count($cleanCustomPosts) !== count($customPosts)) {
+            $meta = $igAccount->metadata ?? [];
+            $meta['posts'] = $cleanCustomPosts;
+            $igAccount->metadata = $meta;
+            $igAccount->save();
+        }
+
         $instagramPosts = $this->metaGraphApi->getInstagramMedia(
-            $igAccount?->account_id ?? 'ig_bsmrlab',
+            $igAccount?->account_id ?? '',
             $igAccount?->access_token,
-            $customPosts,
+            $cleanCustomPosts,
             $username
         );
 
-        if (empty($instagramPosts) && $igAccount && $igAccount->is_connected) {
-            $instagramPosts = $this->metaGraphApi->getDefaultPostsForAccount($username, $igAccount->avatar_url);
-        }
-
-        // Persist default posts to metadata if not stored yet
-        if ($igAccount && empty($customPosts) && ! empty($instagramPosts)) {
+        // If live posts were fetched, save them to metadata
+        if (! empty($instagramPosts) && $igAccount && $instagramPosts !== $cleanCustomPosts) {
             $meta = $igAccount->metadata ?? [];
             $meta['posts'] = $instagramPosts;
             $igAccount->metadata = $meta;
@@ -184,16 +201,9 @@ class DashboardController extends Controller
     public function storeCustomPost(Request $request): RedirectResponse
     {
         $workspace = $this->getOrCreateUserWorkspace($request);
-        $igAccount = SocialAccount::firstOrCreate(
-            ['workspace_id' => $workspace->id, 'platform' => 'instagram'],
-            [
-                'account_id' => 'ig_bsmrlab',
-                'username' => 'bsmrlab',
-                'display_name' => 'Bsmrlab',
-                'is_connected' => true,
-                'status' => 'active',
-            ]
-        );
+        $igAccount = SocialAccount::where('workspace_id', $workspace->id)
+            ->where('platform', 'instagram')
+            ->first();
 
         $validated = $request->validate([
             'caption' => 'required|string',
@@ -202,29 +212,57 @@ class DashboardController extends Controller
             'permalink' => 'nullable|string',
         ]);
 
-        $metadata = $igAccount->metadata ?? [];
-        $posts = $metadata['posts'] ?? [];
+        $permalink = trim($validated['permalink'] ?? '');
+        $mediaUrl = trim($validated['media_url'] ?? '');
 
-        $permalink = $validated['permalink'] ?? '';
+        // If user provided an Instagram permalink, attempt to fetch the real post image via og:image
+        if (empty($mediaUrl) && ! empty($permalink)) {
+            try {
+                $ch = curl_init($permalink);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_USERAGENT, 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)');
+                curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 6);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                $html = curl_exec($ch);
+                curl_close($ch);
+
+                if (! empty($html) && preg_match('/<meta property="og:image" content="([^"]+)"/i', $html, $m)) {
+                    $mediaUrl = html_entity_decode($m[1], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                }
+            } catch (Exception $e) {
+                // ignore
+            }
+        }
+
+        if (empty($mediaUrl) && $igAccount) {
+            $mediaUrl = $igAccount->avatar_url;
+        }
+
         $shortId = 'post_'.substr(md5($permalink ?: microtime()), 0, 8);
+
+        $metadata = $igAccount ? ($igAccount->metadata ?? []) : [];
+        $posts = $metadata['posts'] ?? [];
 
         $posts[] = [
             'id' => $shortId,
             'caption' => $validated['caption'],
             'media_type' => $validated['media_type'] ?? 'IMAGE',
-            'media_url' => $validated['media_url'] ?: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=80',
-            'thumbnail_url' => $validated['media_url'] ?: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=80',
+            'media_url' => $mediaUrl,
+            'thumbnail_url' => $mediaUrl,
             'permalink' => $permalink ?: "https://www.instagram.com/p/{$shortId}/",
             'timestamp' => now()->toIso8601String(),
-            'like_count' => rand(150, 750),
-            'comments_count' => rand(15, 80),
+            'like_count' => 0,
+            'comments_count' => 0,
         ];
 
-        $metadata['posts'] = $posts;
-        $igAccount->metadata = $metadata;
-        $igAccount->save();
+        if ($igAccount) {
+            $metadata['posts'] = $posts;
+            $igAccount->metadata = $metadata;
+            $igAccount->save();
+        }
 
-        return back()->with('success', 'Postingan @bsmrlab berhasil ditambahkan dan siap diotomasi!');
+        return back()->with('success', 'Postingan berhasil ditambahkan ke dashboard dan siap diotomasi!');
     }
 
     public function deleteCustomPost(Request $request, string $id): RedirectResponse
@@ -259,23 +297,44 @@ class DashboardController extends Controller
 
         $username = $igAccount->username ?: 'bsmrlab';
 
-        // Force fresh fetch from Meta API or curated posts
-        $posts = $this->metaGraphApi->getInstagramMedia(
-            $igAccount->account_id,
-            $igAccount->access_token,
-            [],
-            $username
-        );
+        // Filter out any previous dummy/mock posts
+        $existing = array_values(array_filter($igAccount->metadata['posts'] ?? [], function ($p) {
+            $id = (string) ($p['id'] ?? '');
+            $caption = (string) ($p['caption'] ?? '');
+            if (str_starts_with($id, 'post_bsmrlab_real_') || str_starts_with($id, 'post_bsmrlab_2') || str_starts_with($id, 'post_bsmrlab_3')) {
+                return false;
+            }
+            if (str_contains($caption, 'Ciee yang katanya mau jadi') || str_contains($caption, 'Build fast & automate') || str_contains($caption, '3 Rahasia naikin omset')) {
+                return false;
+            }
 
-        if (empty($posts)) {
-            $posts = $this->metaGraphApi->getDefaultPostsForAccount($username, $igAccount->avatar_url);
+            return true;
+        }));
+
+        // Force fresh live fetch from Meta Graph API
+        $posts = [];
+        if ($igAccount->access_token) {
+            $posts = $this->metaGraphApi->fetchLiveInstagramMedia(
+                $igAccount->account_id,
+                $igAccount->access_token
+            );
         }
 
+        $finalPosts = ! empty($posts) ? $posts : $existing;
+
         $meta = $igAccount->metadata ?? [];
-        $meta['posts'] = $posts;
+        $meta['posts'] = $finalPosts;
         $igAccount->metadata = $meta;
         $igAccount->save();
 
-        return back()->with('success', "Postingan @{$username} berhasil disinkronkan ke dashboard!");
+        if (! empty($posts)) {
+            return back()->with('success', 'Berhasil menarik '.count($posts)." postingan asli dari akun Instagram @{$username}!");
+        }
+
+        if (! empty($finalPosts)) {
+            return back()->with('success', "Postingan @{$username} berhasil diperbarui.");
+        }
+
+        return back()->with('info', "Meta Graph API belum mengembalikan postingan untuk @{$username} (karena aplikasi Meta masih dalam mode Development atau memerlukan izin akses media). Anda dapat memasukkan link postingan @{$username} secara langsung melalui tombol 'Tambah Postingan'.");
     }
 }
