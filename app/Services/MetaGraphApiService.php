@@ -62,7 +62,6 @@ class MetaGraphApiService
 
         $params = http_build_query([
             'enable_fb_login' => '0',
-            'force_reauth' => 'true',
             'client_id' => $igAppId,
             'redirect_uri' => $this->redirectUri,
             'response_type' => 'code',
