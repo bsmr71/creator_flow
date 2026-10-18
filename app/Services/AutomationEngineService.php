@@ -187,7 +187,8 @@ class AutomationEngineService
                         $senderId,
                         $conditions['opening_dm_text'],
                         [],
-                        $accessToken
+                        $accessToken,
+                        $commentId
                     );
                 }
 
@@ -197,7 +198,8 @@ class AutomationEngineService
                     $senderId,
                     $messageBody,
                     $buttons,
-                    $accessToken
+                    $accessToken,
+                    $commentId
                 );
 
                 // Feature: Public Comment Reply (Replying publicly to boost algorithm engagement)

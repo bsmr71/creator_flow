@@ -318,13 +318,15 @@ class MetaGraphApiService
 
     /**
      * Send a Direct Message (DM) to an Instagram user via Meta Send API.
+     * Supports both standard direct messaging and Instagram Private Replies to comments.
      */
     public function sendDirectMessage(
         string $instagramAccountId,
         string $recipientId,
         string $messageText,
         array $buttons = [],
-        ?string $accessToken = null
+        ?string $accessToken = null,
+        ?string $commentId = null
     ): array {
         $isDirectIg = ($accessToken && (str_starts_with($accessToken, 'IG') || ! str_starts_with($accessToken, 'EAAB')));
 
@@ -343,17 +345,36 @@ class MetaGraphApiService
             $endpoints[] = "https://graph.instagram.com/v21.0/{$instagramAccountId}/messages";
         }
 
-        // Build payload
-        $payload = [
-            'recipient' => [
-                'id' => $recipientId,
-            ],
-            'message' => [
-                'text' => $messageText,
-            ],
+        // Prepare message body, formatting button links into text for maximum compatibility
+        $bodyWithLinks = $messageText;
+        if (! empty($buttons)) {
+            foreach ($buttons as $btn) {
+                $btnTitle = $btn['title'] ?? 'Buka Link';
+                $btnUrl = $btn['url'] ?? '';
+                if (! empty($btnUrl) && ! str_contains($bodyWithLinks, $btnUrl)) {
+                    $bodyWithLinks .= "\n\n👉 {$btnTitle}: {$btnUrl}";
+                }
+            }
+        }
+
+        // Build payloads to try in order of priority:
+        $payloads = [];
+
+        // 1. If triggered by a comment, Instagram Private Reply is required by Meta
+        if (! empty($commentId)) {
+            $payloads[] = [
+                'recipient' => ['comment_id' => $commentId],
+                'message' => ['text' => $bodyWithLinks],
+            ];
+        }
+
+        // 2. Standard direct message with recipient user ID
+        $standardPayload = [
+            'recipient' => ['id' => $recipientId],
+            'message' => ['text' => $bodyWithLinks],
         ];
 
-        // If buttons / quick replies exist, append them
+        // Append quick replies if buttons exist
         if (! empty($buttons)) {
             $quickReplies = [];
             foreach ($buttons as $btn) {
@@ -363,34 +384,53 @@ class MetaGraphApiService
                     'payload' => $btn['url'] ?? 'CLICK_URL',
                 ];
             }
-            $payload['message']['quick_replies'] = $quickReplies;
+            $payloadWithButtons = $standardPayload;
+            $payloadWithButtons['message']['quick_replies'] = $quickReplies;
+            $payloads[] = $payloadWithButtons;
         }
+
+        $payloads[] = $standardPayload;
 
         $lastError = null;
         foreach ($endpoints as $endpoint) {
-            try {
-                $request = Http::withHeaders(['Content-Type' => 'application/json']);
-                if ($accessToken) {
-                    $request = $request->withToken($accessToken);
+            foreach ($payloads as $payload) {
+                try {
+                    $request = Http::withHeaders(['Content-Type' => 'application/json']);
+                    if ($accessToken) {
+                        $request = $request->withToken($accessToken);
+                    }
+
+                    $response = $request->post($endpoint, $payload);
+
+                    if ($response->successful()) {
+                        Log::info('Meta Send Direct Message Succeeded', [
+                            'endpoint' => $endpoint,
+                            'recipient' => $payload['recipient'] ?? [],
+                            'response' => $response->json(),
+                        ]);
+
+                        return [
+                            'success' => true,
+                            'data' => $response->json(),
+                        ];
+                    }
+
+                    $lastError = $response->json();
+                    Log::warning('Meta Send Direct Message Attempt Failed', [
+                        'endpoint' => $endpoint,
+                        'recipient' => $payload['recipient'] ?? [],
+                        'status' => $response->status(),
+                        'error' => $lastError,
+                    ]);
+                } catch (Exception $e) {
+                    $lastError = ['message' => $e->getMessage()];
                 }
-
-                $response = $request->post($endpoint, $payload);
-
-                if ($response->successful()) {
-                    return [
-                        'success' => true,
-                        'data' => $response->json(),
-                    ];
-                }
-
-                $lastError = $response->json();
-            } catch (Exception $e) {
-                $lastError = ['message' => $e->getMessage()];
             }
         }
 
-        Log::error('Meta Send Direct Message Failed on all endpoints', [
+        Log::error('Meta Send Direct Message Failed on all payloads and endpoints', [
             'recipient_id' => $recipientId,
+            'comment_id' => $commentId,
             'error' => $lastError,
         ]);
 
