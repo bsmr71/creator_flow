@@ -77,6 +77,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::post('/dashboard/instagram/posts', [DashboardController::class, 'storeCustomPost'])->name('dashboard.instagram.posts.store');
     Route::delete('/dashboard/instagram/posts/{id}', [DashboardController::class, 'deleteCustomPost'])->name('dashboard.instagram.posts.destroy');
+    Route::post('/dashboard/instagram/sync', [DashboardController::class, 'syncInstagramPosts'])->name('dashboard.instagram.posts.sync');
 
     // Automations
     Route::prefix('automations')->name('automations.')->group(function () {

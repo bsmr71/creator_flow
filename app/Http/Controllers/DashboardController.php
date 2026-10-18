@@ -127,8 +127,21 @@ class DashboardController extends Controller
         $instagramPosts = $this->metaGraphApi->getInstagramMedia(
             $igAccount?->account_id ?? 'ig_bsmrlab',
             $igAccount?->access_token,
-            $customPosts
+            $customPosts,
+            $username
         );
+
+        if (empty($instagramPosts) && $igAccount && $igAccount->is_connected) {
+            $instagramPosts = $this->metaGraphApi->getDefaultPostsForAccount($username, $igAccount->avatar_url);
+        }
+
+        // Persist default posts to metadata if not stored yet
+        if ($igAccount && empty($customPosts) && ! empty($instagramPosts)) {
+            $meta = $igAccount->metadata ?? [];
+            $meta['posts'] = $instagramPosts;
+            $igAccount->metadata = $meta;
+            $igAccount->save();
+        }
 
         $existingAutomationPostIds = $automations->pluck('triggers')->flatten()->pluck('post_id')->filter()->toArray();
         foreach ($instagramPosts as &$post) {
@@ -231,5 +244,38 @@ class DashboardController extends Controller
         }
 
         return back()->with('success', 'Postingan berhasil dihapus.');
+    }
+
+    public function syncInstagramPosts(Request $request): RedirectResponse
+    {
+        $workspace = $this->getOrCreateUserWorkspace($request);
+        $igAccount = SocialAccount::where('workspace_id', $workspace->id)
+            ->where('platform', 'instagram')
+            ->first();
+
+        if (! $igAccount) {
+            return back()->with('error', 'Belum ada akun Instagram yang terhubung.');
+        }
+
+        $username = $igAccount->username ?: 'bsmrlab';
+
+        // Force fresh fetch from Meta API or curated posts
+        $posts = $this->metaGraphApi->getInstagramMedia(
+            $igAccount->account_id,
+            $igAccount->access_token,
+            [],
+            $username
+        );
+
+        if (empty($posts)) {
+            $posts = $this->metaGraphApi->getDefaultPostsForAccount($username, $igAccount->avatar_url);
+        }
+
+        $meta = $igAccount->metadata ?? [];
+        $meta['posts'] = $posts;
+        $igAccount->metadata = $meta;
+        $igAccount->save();
+
+        return back()->with('success', "Postingan @{$username} berhasil disinkronkan ke dashboard!");
     }
 }

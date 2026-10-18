@@ -40,15 +40,15 @@ class AutomationController extends Controller
         $workspace = $request->user()->currentWorkspace();
         $socialAccounts = SocialAccount::where('workspace_id', $workspace->id)->get();
         $igAccount = $socialAccounts->firstWhere('platform', 'instagram');
+        $username = $igAccount ? $igAccount->username : 'bsmrlab';
         $customPosts = $igAccount->metadata['posts'] ?? [];
 
         $mediaList = $this->metaGraphApi->getInstagramMedia(
             $igAccount?->account_id ?? 'ig_bsmrlab',
             $igAccount?->access_token,
-            $customPosts
+            $customPosts,
+            $username
         );
-
-        $username = $igAccount ? $igAccount->username : 'bsmrlab';
         $recentPost = $mediaList[0] ?? [
             'id' => 'post_bsmrlab_1',
             'username' => $username,

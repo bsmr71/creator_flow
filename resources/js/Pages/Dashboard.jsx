@@ -26,7 +26,8 @@ import {
     Layers,
     Trash2,
     X,
-    ExternalLink
+    ExternalLink,
+    RefreshCw
 } from 'lucide-react';
 
 export default function Dashboard({
@@ -45,6 +46,15 @@ export default function Dashboard({
     const [newPostMediaType, setNewPostMediaType] = useState('IMAGE');
     const [newPostMediaUrl, setNewPostMediaUrl] = useState('');
     const [savingPost, setSavingPost] = useState(false);
+    const [syncing, setSyncing] = useState(false);
+
+    const handleSyncPosts = () => {
+        setSyncing(true);
+        router.post('/dashboard/instagram/sync', {}, {
+            preserveScroll: true,
+            onFinish: () => setSyncing(false),
+        });
+    };
 
     const handleToggle = (automationId) => {
         router.post(`/automations/${automationId}/toggle`, {}, {
@@ -235,11 +245,21 @@ export default function Dashboard({
                         <div className="flex items-center gap-2">
                             <button
                                 type="button"
+                                onClick={handleSyncPosts}
+                                disabled={syncing}
+                                className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                                title="Sinkronkan postingan dari Instagram"
+                            >
+                                <RefreshCw className={`w-3.5 h-3.5 text-slate-600 ${syncing ? 'animate-spin' : ''}`} />
+                                <span>{syncing ? 'Sinkronisasi...' : 'Sinkronkan Postingan'}</span>
+                            </button>
+                            <button
+                                type="button"
                                 onClick={() => setShowAddPostModal(true)}
                                 className="px-3.5 py-2 rounded-xl bg-[#18181b] hover:bg-[#27272a] text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
                             >
                                 <Plus className="w-4 h-4" />
-                                <span>Tambah Postingan @{currentUser?.username || 'Instagram'}</span>
+                                <span>Tambah Postingan</span>
                             </button>
                         </div>
                     </div>
@@ -253,17 +273,28 @@ export default function Dashboard({
                             <div className="max-w-md mx-auto space-y-1">
                                 <h4 className="text-sm font-bold text-[#18181b]">Belum Ada Postingan @{currentUser?.username || 'Instagram'} di Dashboard</h4>
                                 <p className="text-xs text-[#71717a] leading-relaxed">
-                                    Kamu bisa langsung memasukkan link atau judul postingan/reels @{currentUser?.username || 'Instagram'} sekarang untuk langsung mengaktifkan bot auto-reply DM.
+                                    Kamu bisa klik tombol <strong>"Muat Ulang Postingan"</strong> untuk menarik postingan dari akun Instagram Anda, atau menambahkan link/judul postingan secara langsung.
                                 </p>
                             </div>
-                            <button
-                                type="button"
-                                onClick={() => setShowAddPostModal(true)}
-                                className="px-4 py-2.5 rounded-xl bg-[#18181b] hover:bg-[#27272a] text-white text-xs font-semibold inline-flex items-center gap-2 shadow-xs transition-all cursor-pointer"
-                            >
-                                <Plus className="w-4 h-4" />
-                                <span>Tambah Postingan Pertama @{currentUser?.username || 'Instagram'}</span>
-                            </button>
+                            <div className="flex flex-wrap items-center justify-center gap-2.5">
+                                <button
+                                    type="button"
+                                    onClick={handleSyncPosts}
+                                    disabled={syncing}
+                                    className="px-4 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-xs font-semibold inline-flex items-center gap-2 shadow-xs transition-all cursor-pointer"
+                                >
+                                    <RefreshCw className={`w-4 h-4 text-slate-600 ${syncing ? 'animate-spin' : ''}`} />
+                                    <span>{syncing ? 'Menghubungi Instagram...' : `Muat Ulang Postingan @${currentUser?.username || 'Instagram'}`}</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAddPostModal(true)}
+                                    className="px-4 py-2.5 rounded-xl bg-[#18181b] hover:bg-[#27272a] text-white text-xs font-semibold inline-flex items-center gap-2 shadow-xs transition-all cursor-pointer"
+                                >
+                                    <Plus className="w-4 h-4" />
+                                    <span>Tambah Postingan Manual</span>
+                                </button>
+                            </div>
                         </div>
                     ) : (
                         /* Grid of All Instagram Posts */
