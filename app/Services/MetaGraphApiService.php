@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use Exception;
-use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -327,7 +326,22 @@ class MetaGraphApiService
         array $buttons = [],
         ?string $accessToken = null
     ): array {
-        $endpoint = "{$this->baseUrl}/{$instagramAccountId}/messages";
+        $isDirectIg = ($accessToken && (str_starts_with($accessToken, 'IG') || ! str_starts_with($accessToken, 'EAAB')));
+
+        $endpoints = [];
+        if ($isDirectIg) {
+            if (! empty($instagramAccountId) && ! str_starts_with($instagramAccountId, 'ig_') && ! str_starts_with($instagramAccountId, 'cf_')) {
+                $endpoints[] = "https://graph.instagram.com/v21.0/{$instagramAccountId}/messages";
+            }
+            $endpoints[] = 'https://graph.instagram.com/v21.0/me/messages';
+            $endpoints[] = "{$this->baseUrl}/{$instagramAccountId}/messages";
+        } else {
+            if (! empty($instagramAccountId) && ! str_starts_with($instagramAccountId, 'ig_') && ! str_starts_with($instagramAccountId, 'cf_')) {
+                $endpoints[] = "{$this->baseUrl}/{$instagramAccountId}/messages";
+            }
+            $endpoints[] = "{$this->baseUrl}/me/messages";
+            $endpoints[] = "https://graph.instagram.com/v21.0/{$instagramAccountId}/messages";
+        }
 
         // Build payload
         $payload = [
@@ -352,32 +366,37 @@ class MetaGraphApiService
             $payload['message']['quick_replies'] = $quickReplies;
         }
 
-        $request = Http::withHeaders(['Content-Type' => 'application/json']);
+        $lastError = null;
+        foreach ($endpoints as $endpoint) {
+            try {
+                $request = Http::withHeaders(['Content-Type' => 'application/json']);
+                if ($accessToken) {
+                    $request = $request->withToken($accessToken);
+                }
 
-        if ($accessToken) {
-            $request = $request->withToken($accessToken);
+                $response = $request->post($endpoint, $payload);
+
+                if ($response->successful()) {
+                    return [
+                        'success' => true,
+                        'data' => $response->json(),
+                    ];
+                }
+
+                $lastError = $response->json();
+            } catch (Exception $e) {
+                $lastError = ['message' => $e->getMessage()];
+            }
         }
 
-        /** @var Response $response */
-        $response = $request->post($endpoint, $payload);
-
-        if ($response->failed()) {
-            Log::error('Meta Send Direct Message Failed', [
-                'endpoint' => $endpoint,
-                'recipient_id' => $recipientId,
-                'status' => $response->status(),
-                'error' => $response->json(),
-            ]);
-
-            return [
-                'success' => false,
-                'error' => $response->json(),
-            ];
-        }
+        Log::error('Meta Send Direct Message Failed on all endpoints', [
+            'recipient_id' => $recipientId,
+            'error' => $lastError,
+        ]);
 
         return [
-            'success' => true,
-            'data' => $response->json(),
+            'success' => false,
+            'error' => $lastError,
         ];
     }
 
@@ -386,27 +405,45 @@ class MetaGraphApiService
      */
     public function replyToComment(string $commentId, string $replyText, ?string $accessToken = null): array
     {
-        $endpoint = "{$this->baseUrl}/{$commentId}/replies";
+        $isDirectIg = ($accessToken && (str_starts_with($accessToken, 'IG') || ! str_starts_with($accessToken, 'EAAB')));
 
-        $request = Http::asForm();
-        if ($accessToken) {
-            $request = $request->withToken($accessToken);
+        $endpoints = [];
+        if ($isDirectIg) {
+            $endpoints[] = "https://graph.instagram.com/v21.0/{$commentId}/replies";
+            $endpoints[] = "{$this->baseUrl}/{$commentId}/replies";
+        } else {
+            $endpoints[] = "{$this->baseUrl}/{$commentId}/replies";
+            $endpoints[] = "https://graph.instagram.com/v21.0/{$commentId}/replies";
         }
 
-        $response = $request->post($endpoint, [
-            'message' => $replyText,
+        $lastError = null;
+        foreach ($endpoints as $endpoint) {
+            try {
+                $request = Http::asForm();
+                if ($accessToken) {
+                    $request = $request->withToken($accessToken);
+                }
+
+                $response = $request->post($endpoint, [
+                    'message' => $replyText,
+                ]);
+
+                if ($response->successful()) {
+                    return ['success' => true, 'data' => $response->json()];
+                }
+
+                $lastError = $response->json();
+            } catch (Exception $e) {
+                $lastError = ['message' => $e->getMessage()];
+            }
+        }
+
+        Log::error('Meta Reply To Comment Failed on all endpoints', [
+            'comment_id' => $commentId,
+            'error' => $lastError,
         ]);
 
-        if ($response->failed()) {
-            Log::error('Meta Reply To Comment Failed', [
-                'comment_id' => $commentId,
-                'error' => $response->json(),
-            ]);
-
-            return ['success' => false, 'error' => $response->json()];
-        }
-
-        return ['success' => true, 'data' => $response->json()];
+        return ['success' => false, 'error' => $lastError];
     }
 
     /**
@@ -542,7 +579,11 @@ class MetaGraphApiService
         }
 
         try {
-            $response = Http::withToken($accessToken)->get("{$this->baseUrl}/{$instagramScopedId}", [
+            $base = (str_starts_with($accessToken, 'IG') || ! str_starts_with($accessToken, 'EAAB'))
+                ? 'https://graph.instagram.com/v21.0'
+                : $this->baseUrl;
+
+            $response = Http::withToken($accessToken)->get("{$base}/{$instagramScopedId}", [
                 'fields' => 'name,is_user_follow_business',
             ]);
 
