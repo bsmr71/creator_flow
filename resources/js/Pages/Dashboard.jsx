@@ -43,6 +43,7 @@ export default function Dashboard({
     instagramPosts = []
 }) {
     const { flash } = usePage().props;
+    const igAccount = socialAccounts?.find((a) => a.platform === 'instagram' && a.is_connected);
     const [showAddPostModal, setShowAddPostModal] = useState(false);
     const [newPostCaption, setNewPostCaption] = useState('');
     const [newPostPermalink, setNewPostPermalink] = useState('');
@@ -105,39 +106,62 @@ export default function Dashboard({
                     <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
                         <div className="space-y-2">
                             <div className="flex items-center gap-2">
-                                <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/30 flex items-center gap-1.5">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                                    Bot Engine Ready • 140ms
-                                </span>
-                                <span className="text-xs text-zinc-500">|</span>
-                                <span className="text-xs text-zinc-300">
-                                    Instagram @{currentUser?.username || 'bsmrlab'} Terhubung
-                                </span>
+                                {igAccount ? (
+                                    <>
+                                        <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/30 flex items-center gap-1.5">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                            Bot Engine Ready • {stats?.avgResponseTime || '140ms'}
+                                        </span>
+                                        <span className="text-xs text-zinc-500">|</span>
+                                        <span className="text-xs text-zinc-300">
+                                            Instagram @{igAccount.username} Terhubung
+                                        </span>
+                                    </>
+                                ) : (
+                                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-semibold border border-amber-500/30 flex items-center gap-1.5">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                                        Belum Ada Akun Instagram Terhubung
+                                    </span>
+                                )}
                             </div>
                             <h2 className="text-2xl md:text-3xl font-bold text-white tracking-tight">
-                                Selamat datang kembali, @{currentUser?.username || 'bsmrlab'} 👋
+                                Selamat datang, {currentUser?.name || 'Creator'} 👋
                             </h2>
                             <p className="text-sm text-zinc-300 max-w-xl leading-relaxed">
-                                Bot CreatorFlow siap membalas komentar publik dan mengirim DM link otomatis ke audiens di setiap postingan Instagram Anda.
+                                {igAccount
+                                    ? `Bot CreatorFlow siap membalas komentar publik dan mengirim DM link otomatis ke audiens di setiap postingan Instagram @${igAccount.username}.`
+                                    : 'Hubungkan akun Instagram Professional Anda di menu Integrasi untuk mulai mengotomatisasi balasan komentar dan pengiriman DM link otomatis.'}
                             </p>
                         </div>
 
                         <div className="flex items-center gap-3 shrink-0">
-                            <Link
-                                href="/automations/create"
-                                className="px-5 py-3 rounded-xl bg-white hover:bg-zinc-100 text-[#18181b] font-semibold text-xs shadow-xs active:scale-95 transition-all flex items-center gap-2 cursor-pointer"
-                            >
-                                <Plus className="w-4 h-4" />
-                                <span>Buat Otomasi Baru</span>
-                            </Link>
+                            {igAccount ? (
+                                <>
+                                    <Link
+                                        href="/automations/create"
+                                        className="px-5 py-3 rounded-xl bg-white hover:bg-zinc-100 text-[#18181b] font-semibold text-xs shadow-xs active:scale-95 transition-all flex items-center gap-2 cursor-pointer"
+                                    >
+                                        <Plus className="w-4 h-4" />
+                                        <span>Buat Otomasi Baru</span>
+                                    </Link>
 
-                            <Link
-                                href="/inbox"
-                                className="px-5 py-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white font-medium text-xs border border-zinc-700 transition-all flex items-center gap-2 cursor-pointer"
-                            >
-                                <MessageSquare className="w-4 h-4 text-zinc-300" />
-                                <span>Buka Inbox Chat</span>
-                            </Link>
+                                    <Link
+                                        href="/inbox"
+                                        className="px-5 py-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white font-medium text-xs border border-zinc-700 transition-all flex items-center gap-2 cursor-pointer"
+                                    >
+                                        <MessageSquare className="w-4 h-4 text-zinc-300" />
+                                        <span>Buka Inbox Chat</span>
+                                    </Link>
+                                </>
+                            ) : (
+                                <Link
+                                    href="/integrations"
+                                    className="px-5 py-3 rounded-xl bg-[#d2fc00] hover:bg-[#bdf000] text-black font-extrabold text-xs shadow-xs active:scale-95 transition-all flex items-center gap-2 cursor-pointer"
+                                >
+                                    <PlatformIcon platform="instagram" className="w-4 h-4" />
+                                    <span>Hubungkan Instagram Sekarang</span>
+                                </Link>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -245,15 +269,35 @@ export default function Dashboard({
                             </div>
                         </div>
                         <div className="flex items-baseline justify-between">
-                            <span className="text-xl font-bold text-[#18181b] truncate max-w-[140px]">
-                                @{currentUser?.username || 'bsmrlab'}
-                            </span>
-                            <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                                Terhubung
-                            </span>
+                            {igAccount ? (
+                                <>
+                                    <span className="text-xl font-bold text-[#18181b] truncate max-w-[140px]">
+                                        @{igAccount.username}
+                                    </span>
+                                    <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                                        Terhubung
+                                    </span>
+                                </>
+                            ) : (
+                                <>
+                                    <span className="text-sm font-semibold text-slate-400">
+                                        Belum Terhubung
+                                    </span>
+                                    <Link
+                                        href="/integrations"
+                                        className="text-[11px] font-semibold text-pink-600 hover:text-pink-700 bg-pink-50 hover:bg-pink-100 border border-pink-200 px-2 py-0.5 rounded-full transition-colors cursor-pointer"
+                                    >
+                                        + Hubungkan
+                                    </Link>
+                                </>
+                            )}
                         </div>
                         <div className="text-[11px] text-[#71717a]">
-                            Followers: <strong className="text-[#18181b]">{stats?.totalFollowers || '1.6K'}</strong>
+                            {igAccount ? (
+                                <>Followers: <strong className="text-[#18181b]">{(stats?.totalFollowers || 0).toLocaleString()}</strong></>
+                            ) : (
+                                <span>Klik tombol untuk integrasi akun</span>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -264,9 +308,11 @@ export default function Dashboard({
                         <div>
                             <div className="flex items-center gap-2">
                                 <h3 className="text-lg font-bold text-[#18181b] tracking-tight">
-                                    Postingan & Reels @{currentUser?.username || 'Instagram'}
+                                    {igAccount ? `Postingan & Reels @${igAccount.username}` : 'Postingan & Reels Instagram'}
                                 </h3>
-                                <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold">
+                                <span className={`text-xs px-2.5 py-0.5 rounded-full font-semibold ${
+                                    igAccount ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-slate-100 text-slate-600 border border-slate-200'
+                                }`}>
                                     {instagramPosts.length} Postingan Siap Diotomasi
                                 </span>
                             </div>
@@ -275,37 +321,62 @@ export default function Dashboard({
                             </p>
                         </div>
 
-                        <div className="flex items-center gap-2">
-                            <button
-                                type="button"
-                                onClick={handleSyncPosts}
-                                disabled={syncing}
-                                className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
-                                title="Sinkronkan postingan dari Instagram"
-                            >
-                                <RefreshCw className={`w-3.5 h-3.5 text-slate-600 ${syncing ? 'animate-spin' : ''}`} />
-                                <span>{syncing ? 'Sinkronisasi...' : 'Sinkronkan Postingan'}</span>
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setShowAddPostModal(true)}
-                                className="px-3.5 py-2 rounded-xl bg-[#18181b] hover:bg-[#27272a] text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
-                            >
-                                <Plus className="w-4 h-4" />
-                                <span>Tambah Postingan</span>
-                            </button>
-                        </div>
+                        {igAccount && (
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={handleSyncPosts}
+                                    disabled={syncing}
+                                    className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                                    title="Sinkronkan postingan dari Instagram"
+                                >
+                                    <RefreshCw className={`w-3.5 h-3.5 text-slate-600 ${syncing ? 'animate-spin' : ''}`} />
+                                    <span>{syncing ? 'Sinkronisasi...' : 'Sinkronkan Postingan'}</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAddPostModal(true)}
+                                    className="px-3.5 py-2 rounded-xl bg-[#18181b] hover:bg-[#27272a] text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                                >
+                                    <Plus className="w-4 h-4" />
+                                    <span>Tambah Postingan</span>
+                                </button>
+                            </div>
+                        )}
                     </div>
 
-                    {/* Empty State when no posts */}
-                    {instagramPosts.length === 0 ? (
+                    {/* Empty State when no account connected */}
+                    {!igAccount ? (
+                        <div className="rounded-2xl border-2 border-dashed border-[#e4e4e7] p-8 text-center bg-[#fafaf8] space-y-4">
+                            <div className="w-12 h-12 rounded-2xl bg-pink-50 border border-pink-100 flex items-center justify-center mx-auto text-pink-600 shadow-xs">
+                                <PlatformIcon platform="instagram" className="w-6 h-6" />
+                            </div>
+                            <div className="max-w-md mx-auto space-y-1.5">
+                                <h4 className="text-sm font-bold text-[#18181b]">
+                                    Belum Ada Akun Instagram Terhubung
+                                </h4>
+                                <p className="text-xs text-[#71717a] leading-relaxed">
+                                    Hubungkan akun Instagram Professional Anda terlebih dahulu agar CreatorFlow dapat menarik postingan & reels Anda untuk dipasangkan bot komentar otomatis.
+                                </p>
+                            </div>
+                            <div className="pt-2">
+                                <Link
+                                    href="/integrations"
+                                    className="px-5 py-2.5 rounded-xl bg-pink-600 hover:bg-pink-700 text-white text-xs font-semibold inline-flex items-center gap-2 shadow-xs transition-all cursor-pointer"
+                                >
+                                    <PlatformIcon platform="instagram" className="w-4 h-4" />
+                                    <span>Hubungkan Akun Instagram Sekarang</span>
+                                </Link>
+                            </div>
+                        </div>
+                    ) : instagramPosts.length === 0 ? (
                         <div className="rounded-2xl border-2 border-dashed border-[#e4e4e7] p-8 text-center bg-[#fafaf8] space-y-4">
                             <div className="w-12 h-12 rounded-2xl bg-white border border-[#e4e4e7] flex items-center justify-center mx-auto text-[#18181b] shadow-xs">
                                 <Layers className="w-6 h-6" />
                             </div>
                             <div className="max-w-lg mx-auto space-y-1.5">
                                 <h4 className="text-sm font-bold text-[#18181b]">
-                                    Belum Ada Postingan @{currentUser?.username || 'Instagram'} di Dashboard
+                                    Belum Ada Postingan @{igAccount.username} di Dashboard
                                 </h4>
                                 <p className="text-xs text-[#71717a] leading-relaxed">
                                     Akun Anda sudah terhubung. Untuk langsung memasang bot auto-reply komentar & kirim DM link otomatis, klik <strong>"+ Tambah Postingan Manual"</strong> di bawah lalu masukkan link postingan Instagram Anda.
@@ -327,7 +398,7 @@ export default function Dashboard({
                                     className="px-4 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-xs font-semibold inline-flex items-center gap-2 shadow-xs transition-all cursor-pointer"
                                 >
                                     <RefreshCw className={`w-4 h-4 text-slate-600 ${syncing ? 'animate-spin' : ''}`} />
-                                    <span>{syncing ? 'Menghubungi Instagram...' : `Muat Ulang Postingan @${currentUser?.username || 'Instagram'}`}</span>
+                                    <span>{syncing ? 'Menghubungi Instagram...' : `Muat Ulang Postingan @${igAccount.username}`}</span>
                                 </button>
                             </div>
                         </div>

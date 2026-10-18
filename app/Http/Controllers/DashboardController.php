@@ -120,9 +120,10 @@ class DashboardController extends Controller
         }
 
         $igAccount = $socialAccounts->firstWhere('platform', 'instagram');
-        $username = $igAccount ? $igAccount->username : ($request->user()->name ? Str::slug($request->user()->name, '') : 'bsmrlab');
+        $hasConnectedIg = (bool) ($igAccount && $igAccount->is_connected);
+        $username = $igAccount ? $igAccount->username : null;
 
-        $customPosts = $igAccount->metadata['posts'] ?? [];
+        $customPosts = $igAccount ? ($igAccount->metadata['posts'] ?? []) : [];
 
         // Purge any mock/dummy posts from metadata
         $cleanCustomPosts = array_values(array_filter($customPosts, function ($p) {
@@ -145,12 +146,12 @@ class DashboardController extends Controller
             $igAccount->save();
         }
 
-        $instagramPosts = $this->metaGraphApi->getInstagramMedia(
-            $igAccount?->account_id ?? '',
-            $igAccount?->access_token,
+        $instagramPosts = $hasConnectedIg ? $this->metaGraphApi->getInstagramMedia(
+            $igAccount->account_id ?? '',
+            $igAccount->access_token,
             $cleanCustomPosts,
             $username
-        );
+        ) : [];
 
         // If live posts were fetched, save them to metadata
         if (! empty($instagramPosts) && $igAccount && $instagramPosts !== $cleanCustomPosts) {
@@ -173,12 +174,20 @@ class DashboardController extends Controller
                 'avatar' => $igAccount?->avatar_url ?? '/images/user_avatar.jpg',
                 'username' => $username,
             ],
+            'igAccount' => $igAccount ? [
+                'id' => $igAccount->id,
+                'username' => $igAccount->username,
+                'display_name' => $igAccount->display_name,
+                'avatar_url' => $igAccount->avatar_url,
+                'is_connected' => (bool) $igAccount->is_connected,
+                'followers_count' => $igAccount->metadata['followers_count'] ?? 0,
+            ] : null,
             'stats' => [
                 'totalSent' => $totalSent,
                 'totalClicks' => $totalClicks,
                 'totalLeads' => $totalLeads,
                 'activeCount' => $activeCount,
-                'totalFollowers' => $igAccount->metadata['followers_count'] ?? 1600,
+                'totalFollowers' => $igAccount ? ($igAccount->metadata['followers_count'] ?? 0) : 0,
                 'connectedAccounts' => $socialAccounts->where('is_connected', true)->count(),
                 'conversionRate' => $totalSent > 0 ? round(($totalLeads / $totalSent) * 100, 1) : 0,
                 'avgResponseTime' => $recentLogs->count() > 0 ? round($recentLogs->avg('execution_time_ms')).'ms' : '140ms',
@@ -186,7 +195,7 @@ class DashboardController extends Controller
             'quota' => [
                 'dms_sent' => $totalSent,
                 'dms_limit' => 500,
-                'ig_connected' => $igAccount && $igAccount->is_connected ? 1 : 1,
+                'ig_connected' => $hasConnectedIg ? 1 : 0,
                 'ig_limit' => 1,
             ],
             'instagramPosts' => $instagramPosts,
