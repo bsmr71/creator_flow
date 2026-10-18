@@ -127,24 +127,61 @@ class MetaGraphApiService
     /**
      * Fetch Instagram profile directly when authenticated via Instagram Login for Business.
      */
-    public function getInstagramProfile(string $accessToken): array
+    public function getInstagramProfile(string $accessToken, ?string $userId = null): array
     {
-        // Try Instagram User Profile endpoint with valid fields
-        $response = Http::get('https://graph.instagram.com/me', [
-            'fields' => 'id,username',
-            'access_token' => $accessToken,
-        ]);
+        $data = null;
 
-        if (! $response->successful()) {
-            $response = Http::get("{$this->baseUrl}/me", [
-                'fields' => 'id,name',
-                'access_token' => $accessToken,
-            ]);
+        // 1. Try querying with specific Instagram User ID if returned by token exchange
+        if (! empty($userId)) {
+            $idEndpoints = [
+                "https://graph.instagram.com/v21.0/{$userId}",
+                "https://graph.instagram.com/{$userId}",
+            ];
+
+            foreach ($idEndpoints as $endpoint) {
+                try {
+                    $response = Http::get($endpoint, [
+                        'fields' => 'id,username,name,profile_picture_url',
+                        'access_token' => $accessToken,
+                    ]);
+
+                    if ($response->successful() && (! empty($response->json('username')) || ! empty($response->json('id')))) {
+                        $data = $response->json();
+                        break;
+                    }
+                } catch (Exception $e) {
+                    Log::debug("Endpoint {$endpoint} lookup exception: ".$e->getMessage());
+                }
+            }
         }
 
-        if ($response->successful()) {
-            $data = $response->json();
-            $igId = (string) ($data['id'] ?? $data['user_id'] ?? 'ig_'.time());
+        // 2. Try generic /me endpoints
+        if (! $data) {
+            $meEndpoints = [
+                'https://graph.instagram.com/v21.0/me',
+                'https://graph.instagram.com/me',
+                "{$this->baseUrl}/me",
+            ];
+
+            foreach ($meEndpoints as $endpoint) {
+                try {
+                    $response = Http::get($endpoint, [
+                        'fields' => 'id,username',
+                        'access_token' => $accessToken,
+                    ]);
+
+                    if ($response->successful() && (! empty($response->json('username')) || ! empty($response->json('id')))) {
+                        $data = $response->json();
+                        break;
+                    }
+                } catch (Exception $e) {
+                    Log::debug("Endpoint {$endpoint} lookup exception: ".$e->getMessage());
+                }
+            }
+        }
+
+        if ($data) {
+            $igId = (string) ($data['id'] ?? $data['user_id'] ?? $userId ?? 'ig_'.time());
             $username = (string) ($data['username'] ?? $data['name'] ?? 'instagram_user');
 
             // Fetch real posts directly from Instagram Graph API
@@ -174,6 +211,15 @@ class MetaGraphApiService
                 Log::warning('Failed fetching real media from Instagram: '.$e->getMessage());
             }
 
+            $avatarUrl = $data['profile_picture_url'] ?? null;
+            if (! $avatarUrl) {
+                if (strtolower($username) === 'bsmrlab' && file_exists(public_path('images/bsmrlab_avatar.jpg'))) {
+                    $avatarUrl = asset('images/bsmrlab_avatar.jpg');
+                } else {
+                    $avatarUrl = "https://api.dicebear.com/7.x/identicon/svg?seed={$username}";
+                }
+            }
+
             return [
                 [
                     'page_id' => null,
@@ -181,17 +227,14 @@ class MetaGraphApiService
                     'page_access_token' => $accessToken,
                     'instagram_id' => $igId,
                     'instagram_username' => $username,
-                    'instagram_name' => '@'.$username,
-                    'instagram_avatar' => "https://api.dicebear.com/7.x/identicon/svg?seed={$username}",
+                    'instagram_name' => (! empty($data['name']) ? $data['name'] : '@'.$username),
+                    'instagram_avatar' => $avatarUrl,
                     'posts' => $realPosts,
                 ],
             ];
         }
 
-        Log::warning('Instagram Profile Fetch Failed', [
-            'status' => $response->status(),
-            'body' => $response->body(),
-        ]);
+        Log::warning('Instagram Profile Fetch Failed for direct token');
 
         return [];
     }

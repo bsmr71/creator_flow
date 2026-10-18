@@ -218,7 +218,7 @@ export default function ConnectInstagram({ workspace, currentAccount }) {
                             </button>
                         ) : username.trim().length > 0 ? (
                             <a
-                                href="/integrations/meta/connect?provider=instagram"
+                                href={`/integrations/meta/connect?provider=instagram&username=${encodeURIComponent((profile.username || username).trim())}`}
                                 className="w-full py-4 px-6 rounded-2xl font-extrabold text-sm bg-[#d2f801] hover:bg-[#c3e600] active:scale-98 text-black shadow-md flex items-center justify-center gap-2.5 transition-all cursor-pointer text-center"
                             >
                                 <PlatformIcon platform="instagram" className="w-4 h-4 text-black" />

@@ -58,7 +58,7 @@ export default function IntegrationsIndex({
 
     const handleOAuthConnect = (platformId) => {
         if (platformId === 'instagram') {
-            window.location.href = '/integrations/meta/connect?provider=instagram';
+            window.location.href = '/connect/instagram';
         } else if (platformId === 'facebook') {
             window.location.href = '/integrations/meta/connect?provider=facebook';
         } else {
@@ -171,14 +171,24 @@ export default function IntegrationsIndex({
                         </p>
                     </div>
 
-                    <button
-                        type="button"
-                        onClick={() => setShowManualModal(true)}
-                        className="px-4 py-2 rounded-xl bg-[#18181b] hover:bg-[#27272a] text-white font-semibold text-xs flex items-center gap-2 border border-[#18181b] transition-all shadow-xs cursor-pointer"
-                    >
-                        <Zap className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-                        <span>Sambungkan Akun Langsung (@username)</span>
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <a
+                            href="/connect/instagram"
+                            className="px-4 py-2 rounded-xl bg-[#18181b] hover:bg-[#27272a] text-white font-semibold text-xs flex items-center gap-2 border border-[#18181b] transition-all shadow-xs cursor-pointer"
+                        >
+                            <Zap className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                            <span>Sambungkan Akun Langsung (@username)</span>
+                        </a>
+                        <button
+                            type="button"
+                            onClick={() => setShowManualModal(true)}
+                            className="px-3 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs flex items-center gap-1.5 border border-slate-200 transition-all shadow-xs cursor-pointer"
+                            title="Input Token Manual"
+                        >
+                            <Key className="w-3.5 h-3.5 text-slate-500" />
+                            <span className="hidden sm:inline">Input Token</span>
+                        </button>
+                    </div>
                 </div>
 
 

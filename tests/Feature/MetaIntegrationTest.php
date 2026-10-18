@@ -190,4 +190,43 @@ class MetaIntegrationTest extends TestCase
             'status' => 'active',
         ]);
     }
+
+    public function test_oauth_callback_connects_instagram_account_with_token(): void
+    {
+        Http::fake([
+            'https://api.instagram.com/oauth/access_token' => Http::response([
+                'access_token' => 'IG_TEST_SHORT_TOKEN',
+                'user_id' => '178414000123456',
+            ], 200),
+            'https://graph.instagram.com/access_token*' => Http::response([
+                'access_token' => 'IG_TEST_LONG_TOKEN',
+                'token_type' => 'bearer',
+                'expires_in' => 5184000,
+            ], 200),
+            'https://graph.instagram.com/*' => Http::response([
+                'id' => '178414000123456',
+                'username' => 'bsmrlab',
+            ], 200),
+        ]);
+
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)
+            ->withSession([
+                'meta_oauth_state' => 'test_state_123',
+                'meta_oauth_flow' => 'connect_account',
+                'meta_oauth_username' => 'bsmrlab',
+            ])
+            ->get('/integrations/meta/callback?code=mock_code&state=test_state_123');
+
+        $response->assertRedirect(route('integrations.index'));
+
+        $this->assertDatabaseHas('social_accounts', [
+            'platform' => 'instagram',
+            'username' => 'bsmrlab',
+            'account_id' => '178414000123456',
+            'is_connected' => 1,
+            'status' => 'active',
+        ]);
+    }
 }
