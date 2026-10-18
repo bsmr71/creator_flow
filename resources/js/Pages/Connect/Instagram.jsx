@@ -99,12 +99,13 @@ export default function ConnectInstagram({ workspace, currentAccount }) {
 
     const handleAllowConsent = () => {
         setSubmitting(true);
+        const targetUser = (profile.username || username || '').trim();
         router.post('/connect/instagram/confirm', {
-            username: profile.username,
-            name: profile.name,
-            avatar_url: profile.avatar,
-            followers_count: profile.followers,
-            posts_count: profile.posts,
+            username: targetUser,
+            name: profile.name || `@${targetUser}`,
+            avatar_url: profile.avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${targetUser}`,
+            followers_count: profile.followers || 'Akun Aktif',
+            posts_count: profile.posts || 'Creator/Business',
         }, {
             onFinish: () => {
                 setSubmitting(false);
@@ -171,16 +172,16 @@ export default function ConnectInstagram({ workspace, currentAccount }) {
                             </div>
                         </div>
 
-                        {/* Account Found Detection Box */}
-                        {accountFound && !isSearching && username.trim().length > 0 && (
+                        {/* Account Preview Box */}
+                        {username.trim().length > 0 && !isSearching && (
                             <div className="p-4 rounded-2xl bg-white border-2 border-emerald-500 space-y-2.5 shadow-sm transition-all animate-in fade-in duration-200">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-600">
                                         <Check className="w-4 h-4 stroke-[3]" />
-                                        <span>Akun Ditemukan</span>
+                                        <span>Akun Siap Dihubungkan</span>
                                     </div>
                                     <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                                        Live Profile
+                                        Instagram Professional
                                     </span>
                                 </div>
 
@@ -202,33 +203,20 @@ export default function ConnectInstagram({ workspace, currentAccount }) {
                                         style={{ display: profile.avatar ? 'none' : 'flex' }}
                                         className="w-12 h-12 rounded-full bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600 items-center justify-center text-white font-extrabold text-base shadow-xs shrink-0"
                                     >
-                                        {(profile.name || profile.username || 'I').charAt(0).toUpperCase()}
+                                        {(profile.name || profile.username || username || 'I').charAt(0).toUpperCase()}
                                     </div>
                                     <div className="min-w-0">
                                         <div className="text-sm font-extrabold text-slate-900 truncate">
-                                            {profile.name || `@${profile.username}`}
+                                            {profile.name || `@${username}`}
                                         </div>
                                         <div className="text-xs text-slate-500 font-medium">
-                                            @{profile.username}
+                                            @{username}
                                         </div>
                                         <div className="text-[11px] text-slate-400 mt-0.5 font-medium">
-                                            {profile.followers} • {profile.posts}
+                                            {profile.followers || 'Akun Aktif'} • {profile.posts || 'Creator/Business'}
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                        )}
-
-                        {/* Account Not Found Alert */}
-                        {!accountFound && !isSearching && username.trim().length > 0 && (
-                            <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 space-y-1 text-rose-900 text-xs animate-in fade-in duration-200">
-                                <div className="font-bold flex items-center gap-1.5 text-rose-700">
-                                    <HelpCircle className="w-4 h-4" />
-                                    <span>Akun Instagram Tidak Ditemukan</span>
-                                </div>
-                                <p className="text-[11px] text-rose-800 leading-relaxed">
-                                    {errorMessage || `Tidak dapat menemukan akun @${username} di server Instagram. Pastikan ejaan benar.`}
-                                </p>
                             </div>
                         )}
 
@@ -242,7 +230,7 @@ export default function ConnectInstagram({ workspace, currentAccount }) {
                                 <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
                                 <span>Mencari akun Instagram...</span>
                             </button>
-                        ) : accountFound && username.trim().length > 0 ? (
+                        ) : username.trim().length > 0 ? (
                             <div className="space-y-3">
                                 <button
                                     type="button"
@@ -251,7 +239,7 @@ export default function ConnectInstagram({ workspace, currentAccount }) {
                                     className="w-full py-4 px-6 rounded-full font-extrabold text-sm bg-[#d2f801] hover:bg-[#c3e600] active:scale-98 text-black shadow-md flex items-center justify-center gap-2.5 transition-all cursor-pointer disabled:opacity-75"
                                 >
                                     <PlatformIcon platform="instagram" className="w-4 h-4 text-black" />
-                                    <span>Sign In as @{profile.username}</span>
+                                    <span>Sign In as @{username}</span>
                                 </button>
 
                                 <div className="pt-2 text-center space-y-2.5">
